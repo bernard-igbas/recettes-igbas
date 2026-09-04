@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<!--
+  VERSION : v1 - 04/09/2026
+  Cumule :
+    - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
+  Fichiers precedents : aucun (première version).
+-->
+<meta name="app-version" content="v1-2026-09-04">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recettes IGBas — LaTABLE SiDSanté</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F7EF; --paper:#FFFFFF; --ink:#22301D;
+    --herb:#3E5641; --herb-dark:#28362A; --ochre:#C98A2B; --ochre-dark:#A66F1E;
+    --line:#DCE3D2; --muted:#5B6B54;
+    --ig-b-bg:#EAF3DE; --ig-b-fg:#27500A;
+    --ig-m-bg:#FAEEDA; --ig-m-fg:#633806;
+    --ig-e-bg:#FAECE7; --ig-e-fg:#712B13;
+    --ig-t-bg:#FCEBEB; --ig-t-fg:#791F1F;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--ink);}
+  .app{max-width:900px;margin:0 auto;padding:24px 16px 80px;}
+  header.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+  .brand{font-size:22px;font-weight:800;color:var(--herb-dark);}
+  .brand span{color:var(--ochre);}
+  .version-tag{font-size:12px;color:var(--muted);margin-left:10px;font-weight:600;}
+  nav.tabs{display:flex;gap:8px;flex-wrap:wrap;}
+  nav.tabs button{
+    font-family:inherit;font-size:16px;font-weight:600;
+    padding:10px 16px;border-radius:12px;border:1.5px solid var(--line);
+    background:var(--paper);color:var(--herb-dark);cursor:pointer;
+  }
+  nav.tabs button.active{background:var(--herb);color:#fff;border-color:var(--herb);}
+
+  .cat-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;}
+  .cat-btn{
+    font-family:inherit;font-weight:700;font-size:16px;color:#fff;background:var(--herb);
+    border:none;border-radius:999px;padding:10px 18px;cursor:pointer;
+  }
+  .cat-btn.active{background:var(--ochre);}
+
+  .search-row{margin-bottom:20px;}
+  .search-row input{
+    width:100%;font-family:inherit;font-size:18px;padding:14px 16px;
+    border:1.5px solid var(--line);border-radius:12px;background:var(--paper);
+  }
+
+  .card-grid{display:grid;grid-template-columns:1fr;gap:14px;}
+  @media(min-width:640px){.card-grid{grid-template-columns:1fr 1fr;}}
+  .rcard{
+    background:var(--paper);border-radius:16px;padding:18px 18px 16px;
+    box-shadow:0 1px 3px rgba(34,48,29,.08);cursor:pointer;border:1.5px solid transparent;
+  }
+  .rcard:hover{border-color:var(--ochre);}
+  .rcard .fiche-num{font-size:12px;color:var(--muted);font-weight:700;}
+  .rcard h3{font-size:19px;margin:4px 0 8px;}
+  .rcard .meta{font-size:14px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;}
+  .ig-pill{display:inline-block;font-size:13px;font-weight:700;border-radius:8px;padding:2px 9px;}
+  .ig-b{background:var(--ig-b-bg);color:var(--ig-b-fg);}
+  .ig-m{background:var(--ig-m-bg);color:var(--ig-m-fg);}
+  .ig-e{background:var(--ig-e-bg);color:var(--ig-e-fg);}
+  .ig-t{background:var(--ig-t-bg);color:var(--ig-t-fg);}
+
+  .empty{text-align:center;color:var(--muted);font-size:17px;padding:40px 10px;}
+
+  /* ===== FORMULAIRE SAISIE ===== */
+  .form-card{background:var(--paper);border-radius:20px;padding:28px 24px 32px;box-shadow:0 1px 3px rgba(34,48,29,.08);}
+  .form-title{font-size:24px;font-weight:800;margin:0 0 20px;}
+  .field{margin-bottom:20px;}
+  .field label{display:block;font-size:17px;font-weight:600;margin-bottom:7px;color:var(--herb-dark);}
+  .field input,.field select,.field textarea{
+    width:100%;font-family:inherit;font-size:17px;padding:12px 14px;
+    border:1.5px solid var(--line);border-radius:10px;background:#FBFCF9;color:var(--ink);
+  }
+  .field textarea{resize:vertical;min-height:80px;line-height:1.6;}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--ochre);border-color:var(--ochre);}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:560px){.field-row{grid-template-columns:1fr;}}
+
+  .photo-drop{border:2px dashed var(--line);border-radius:14px;padding:20px;text-align:center;color:var(--muted);font-size:16px;background:#FBFCF9;cursor:pointer;}
+  .photo-preview{max-width:100%;max-height:180px;border-radius:10px;margin-top:10px;display:none;}
+
+  .ing-search-wrap{position:relative;}
+  .ing-suggest{position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;margin-top:4px;max-height:220px;overflow:auto;z-index:5;box-shadow:0 8px 20px rgba(0,0,0,.08);}
+  .ing-suggest div{padding:10px 14px;font-size:16px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;}
+  .ing-suggest div:hover{background:var(--bg);}
+  .ing-list{list-style:none;padding:0;margin:10px 0 0;}
+  .ing-list li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:16px;}
+  .ing-list li input.qty{width:90px;padding:7px 8px;font-size:15px;border:1.5px solid var(--line);border-radius:8px;}
+  .ing-list li .name{flex:1;}
+  .ing-list li button.rm{background:none;border:none;color:var(--ochre-dark);font-size:20px;cursor:pointer;line-height:1;}
+
+  .step-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;}
+  .step-num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--herb);color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;margin-top:5px;}
+  .step-row textarea{flex:1;min-height:52px;}
+  .step-row button.rm{background:none;border:none;color:var(--ochre-dark);font-size:20px;cursor:pointer;margin-top:8px;}
+  .add-btn{background:none;border:1.5px dashed var(--herb);color:var(--herb-dark);font-family:inherit;font-weight:600;font-size:16px;padding:11px 16px;border-radius:12px;cursor:pointer;width:100%;}
+
+  .save-btn{margin-top:24px;width:100%;background:var(--ochre);color:#fff;border:none;border-radius:14px;padding:17px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
+  .save-note{text-align:center;font-size:13px;color:var(--muted);margin-top:10px;}
+  .msg{text-align:center;font-size:15px;font-weight:600;margin-top:12px;padding:10px;border-radius:10px;}
+  .msg.ok{background:var(--ig-b-bg);color:var(--ig-b-fg);}
+  .msg.err{background:var(--ig-t-bg);color:var(--ig-t-fg);}
+
+  /* ===== FICHE CLIENT ===== */
+  .detail-back{background:none;border:none;color:var(--herb-dark);font-family:inherit;font-weight:600;font-size:16px;cursor:pointer;margin-bottom:14px;padding:0;}
+  .phone{background:var(--paper);border-radius:24px;overflow:hidden;box-shadow:0 1px 3px rgba(34,48,29,.08),0 20px 40px rgba(34,48,29,.10);border:1px solid var(--line);}
+  .hero{background:linear-gradient(160deg,var(--herb) 0%,var(--herb-dark) 100%);color:#fff;padding:30px 26px 26px;}
+  .hero-tag{display:inline-block;background:rgba(255,255,255,.15);font-size:13px;font-weight:600;padding:4px 11px;border-radius:999px;margin-bottom:12px;}
+  .hero h2{font-size:26px;font-weight:800;margin:0 0 8px;line-height:1.2;}
+  .hero-photo{width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-top:14px;}
+  .body-pad{padding:24px 26px 26px;}
+  .meta-row{display:flex;gap:20px;margin-bottom:22px;flex-wrap:wrap;}
+  .meta-item{font-size:15px;color:var(--muted);}
+  .meta-item b{display:block;font-size:18px;color:var(--ink);font-weight:700;}
+  .ig-global{display:flex;align-items:center;gap:10px;margin-bottom:22px;padding:12px 14px;border-radius:12px;background:var(--bg);}
+  .ig-global b{font-size:15px;}
+  .section-title{font-size:19px;font-weight:700;color:var(--herb-dark);margin:0 0 12px;}
+  .ingredients{list-style:none;padding:0;margin:0 0 26px;}
+  .ingredients li{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:17px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .ingredients li:last-child{border-bottom:none;}
+  .ing-left{display:flex;align-items:center;gap:10px;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ochre);flex:0 0 auto;}
+  .steps{padding:0;margin:0 0 20px;list-style:none;}
+  .steps li{display:flex;gap:12px;margin-bottom:16px;font-size:17px;line-height:1.6;}
+  .remarque{font-size:15px;color:var(--muted);font-style:italic;line-height:1.6;margin-bottom:20px;}
+  .disclaimer{font-size:12px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line);padding-top:14px;}
+  .cta-bar{padding:18px 26px 26px;border-top:1px solid var(--line);}
+  .download-btn{width:100%;background:var(--herb);color:#fff;border:none;border-radius:14px;padding:17px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
+
+  @media print{
+    body *{visibility:hidden;}
+    #printzone,#printzone *{visibility:visible;}
+    #printzone{position:absolute;left:0;top:0;width:100%;}
+    .cta-bar,.detail-back{display:none!important;}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <header class="top">
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v1 &bull; 04/09/2026</span></div>
+    <nav class="tabs">
+      <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
+      <button id="tabAdmin" onclick="setView('admin')">Ajouter une recette</button>
+    </nav>
+  </header>
+
+  <!-- ===== VUE CATALOGUE ===== -->
+  <div id="viewCatalogue">
+    <div class="search-row"><input type="text" id="searchBox" placeholder="🔍 Rechercher une recette..." oninput="renderCatalogue()"></div>
+    <div class="cat-bar" id="catBar"></div>
+    <div class="card-grid" id="cardGrid"></div>
+    <div class="empty" id="emptyMsg" style="display:none;">Aucune recette pour le moment.</div>
+  </div>
+
+  <!-- ===== VUE FICHE CLIENT ===== -->
+  <div id="viewDetail" style="display:none;">
+    <button class="detail-back" onclick="setView('catalogue')">&larr; Retour aux recettes</button>
+    <div class="phone" id="detailContent"></div>
+  </div>
+
+  <!-- ===== VUE ADMIN (SAISIE) ===== -->
+  <div id="viewAdmin" style="display:none;">
+    <div class="form-card">
+      <div class="form-title">Ajouter une recette</div>
+
+      <div class="field">
+        <label>Titre de la recette</label>
+        <input type="text" id="fTitre" placeholder="Ex. Velouté de potimarron">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Catégorie</label>
+          <select id="fCategorie">
+            <option>Petits Déjeuners</option>
+            <option>Entrées</option>
+            <option>Accompagnements</option>
+            <option>Plats</option>
+            <option>Desserts</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sous-catégorie (optionnel)</label>
+          <input type="text" id="fSousCategorie" placeholder="Ex. Plats Viandes">
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Niveau</label>
+          <select id="fNiveau">
+            <option>Simple</option>
+            <option>Intermédiaire</option>
+            <option>Élaboré</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Classification</label>
+          <select id="fClassification">
+            <option>IG BAS - PL</option>
+            <option>IG BAS - GP</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Nombre de personnes</label>
+          <input type="text" id="fPersonnes" placeholder="Ex. 4">
+        </div>
+        <div class="field">
+          <label>Préparation / Cuisson</label>
+          <input type="text" id="fTemps" placeholder="Ex. 20 mn / 25 mn">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Photo</label>
+        <div class="photo-drop" onclick="document.getElementById('fPhotoFile').click()">Cliquer pour choisir une photo</div>
+        <input type="file" id="fPhotoFile" accept="image/*" style="display:none" onchange="handlePhoto(event)">
+        <img id="photoPreview" class="photo-preview">
+      </div>
+
+      <div class="field">
+        <label>Ingrédients</label>
+        <div class="ing-search-wrap">
+          <input type="text" id="ingSearch" placeholder="Rechercher un aliment (l'IG est ajouté automatiquement)..." oninput="renderIngSuggest()" onfocus="renderIngSuggest()">
+          <div class="ing-suggest" id="ingSuggest" style="display:none;"></div>
+        </div>
+        <ul class="ing-list" id="ingList"></ul>
+      </div>
+
+      <div class="field">
+        <label>Étapes</label>
+        <div id="stepsWrap"></div>
+        <button class="add-btn" onclick="addStep()">+ Ajouter une étape</button>
+      </div>
+
+      <div class="field">
+        <label>Remarque (optionnel)</label>
+        <textarea id="fRemarque" placeholder="Astuce, variante, conseil de Marie-Laure..."></textarea>
+      </div>
+
+      <button class="save-btn" onclick="saveRecette()">Enregistrer la recette</button>
+      <div id="saveMsg"></div>
+      <p class="save-note">La fiche client et le PDF se mettent à jour automatiquement.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ===================== CONFIGURATION =====================
+// Code à définir toi-même avant la mise en ligne (protège l'enregistrement des recettes).
+// Doit être identique à la variable RECETTES_CODE côté serveur (functions/api/data.js).
+const RECETTES_CODE = "CHANGE_MOI";
+
+// Adresse publique du fichier d'aliments partagé, hébergé dans le dépôt compagnon-sante.
+const ALIMENTS_URL = "https://compagnon-sante.pages.dev/aliments.json";
+
+const DISCLAIMER_TXT = "Cette recette est le fruit d'une interprétation personnelle. Elle est élaborée selon mes critères, chacun(e) pourra l'adapter à son environnement social et culturel. Elle est un guide de bonnes pratiques culinaires et peut selon le cas être diversement appréciée par les uns ou les autres. Il va de votre devoir de vérifier qu'il n'y ait aucune contre-indication allergène ou médicale particulière envers les personnes susceptibles de prendre ce repas.";
+
+// ===================== ÉTAT =====================
+let D = { recettes: [] };
+let ALIMENTS = [];
+let currentIngredients = [];
+let currentSteps = [];
+let currentPhoto = "";
+let currentCat = "Toutes";
+let currentRecetteId = null;
+
+// ===================== CHARGEMENT =====================
+async function loadData(){
+  try{
+    const r = await fetch('/api/data');
+    if(r.ok){ D = await r.json(); }
+  }catch(e){ fallbackLocal(); }
+  if(!D || !D.recettes) fallbackLocal();
+  renderCatalogue();
+}
+function fallbackLocal(){
+  try{
+    const raw = localStorage.getItem('recettes-igbas-data');
+    D = raw ? JSON.parse(raw) : { recettes: [] };
+  }catch(e){ D = { recettes: [] }; }
+}
+async function persist(){
+  localStorage.setItem('recettes-igbas-data', JSON.stringify(D));
+  try{
+    await fetch('/api/data', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Recettes-Code':RECETTES_CODE},
+      body: JSON.stringify(D)
+    });
+  }catch(e){ /* localStorage reste la sauvegarde de secours */ }
+}
+
+async function loadAliments(){
+  try{
+    const r = await fetch(ALIMENTS_URL);
+    ALIMENTS = await r.json();
+  }catch(e){ ALIMENTS = []; }
+}
+
+// ===================== NAVIGATION =====================
+function setView(v){
+  document.getElementById('viewCatalogue').style.display = v==='catalogue' ? '' : 'none';
+  document.getElementById('viewDetail').style.display = v==='detail' ? '' : 'none';
+  document.getElementById('viewAdmin').style.display = v==='admin' ? '' : 'none';
+  document.getElementById('tabCatalogue').classList.toggle('active', v==='catalogue');
+  document.getElementById('tabAdmin').classList.toggle('active', v==='admin');
+  if(v==='admin') resetForm();
+  window.scrollTo(0,0);
+}
+
+// ===================== IG HELPERS =====================
+function igCls(ig){
+  if(ig<=35) return 'ig-b';
+  if(ig<=55) return 'ig-m';
+  if(ig<=70) return 'ig-e';
+  return 'ig-t';
+}
+function igLabel(ig){
+  if(ig<=35) return 'IG bas';
+  if(ig<=55) return 'IG modéré';
+  if(ig<=70) return 'IG élevé';
+  return 'IG très élevé';
+}
+function igMoyen(ingredients){
+  if(!ingredients.length) return 0;
+  const sum = ingredients.reduce((s,i)=>s+(i.ig||0),0);
+  return Math.round(sum/ingredients.length);
+}
+
+// ===================== CATALOGUE =====================
+function renderCatBar(){
+  const cats = ['Toutes','Petits Déjeuners','Entrées','Accompagnements','Plats','Desserts'];
+  const bar = document.getElementById('catBar');
+  bar.innerHTML = cats.map(c=>`<button class="cat-btn ${c===currentCat?'active':''}" onclick="setCat('${c}')">${c}</button>`).join('');
+}
+function setCat(c){ currentCat = c; renderCatalogue(); }
+
+function renderCatalogue(){
+  renderCatBar();
+  const q = (document.getElementById('searchBox').value||'').toLowerCase().trim();
+  let list = D.recettes.slice().reverse();
+  if(currentCat!=='Toutes') list = list.filter(r=>r.categorie===currentCat);
+  if(q) list = list.filter(r=>r.titre.toLowerCase().includes(q));
+  const grid = document.getElementById('cardGrid');
+  document.getElementById('emptyMsg').style.display = list.length? 'none':'block';
+  grid.innerHTML = list.map(r=>{
+    const ig = igMoyen(r.ingredients);
+    return `<div class="rcard" onclick="openDetail('${r.id}')">
+      <div class="fiche-num">Fiche n° ${r.ficheNum}</div>
+      <h3>${escapeHtml(r.titre)}</h3>
+      <div class="meta">
+        <span>${escapeHtml(r.categorie)}</span>
+        <span>${escapeHtml(r.personnes||'')} pers.</span>
+        <span class="ig-pill ${igCls(ig)}">${igLabel(ig)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ===================== FICHE DÉTAIL =====================
+function openDetail(id){
+  currentRecetteId = id;
+  const r = D.recettes.find(x=>x.id===id);
+  if(!r) return;
+  const ig = igMoyen(r.ingredients);
+  const html = `
+    <div id="printzone">
+      <div class="hero">
+        <span class="hero-tag">Fiche n° ${r.ficheNum} — ${escapeHtml(r.categorie)}${r.sousCategorie? ' · '+escapeHtml(r.sousCategorie):''}</span>
+        <h2>${escapeHtml(r.titre)}</h2>
+        ${r.photo? `<img class="hero-photo" src="${r.photo}">` : ''}
+      </div>
+      <div class="body-pad">
+        <div class="meta-row">
+          <div class="meta-item"><b>${escapeHtml(r.temps||'—')}</b>Prépa / cuisson</div>
+          <div class="meta-item"><b>${escapeHtml(r.personnes||'—')}</b>Personnes</div>
+          <div class="meta-item"><b>${escapeHtml(r.niveau||'—')}</b>Niveau</div>
+          <div class="meta-item"><b>${escapeHtml(r.classification||'—')}</b>Classification</div>
+        </div>
+        <div class="ig-global">
+          <span class="ig-pill ${igCls(ig)}">${igLabel(ig)} (${ig})</span>
+          <b>Indice glycémique moyen de la recette</b>
+        </div>
+        <div class="section-title">Ingrédients</div>
+        <ul class="ingredients">
+          ${r.ingredients.map(i=>`<li>
+            <span class="ing-left"><span class="dot"></span>${escapeHtml(i.qty||'')} ${escapeHtml(i.nom)}</span>
+            <span class="ig-pill ${igCls(i.ig)}">${i.ig}</span>
+          </li>`).join('')}
+        </ul>
+        <div class="section-title">Étapes</div>
+        <ul class="steps">
+          ${r.etapes.map((e,idx)=>`<li><div class="step-num">${idx+1}</div><div>${escapeHtml(e)}</div></li>`).join('')}
+        </ul>
+        ${r.remarque? `<div class="remarque">${escapeHtml(r.remarque)}</div>` : ''}
+        <div class="disclaimer">${DISCLAIMER_TXT}</div>
+      </div>
+    </div>
+    <div class="cta-bar">
+      <button class="download-btn" onclick="window.print()">Télécharger la recette en PDF</button>
+    </div>
+  `;
+  document.getElementById('detailContent').innerHTML = html;
+  setView('detail');
+}
+
+// ===================== FORMULAIRE SAISIE =====================
+function resetForm(){
+  document.getElementById('fTitre').value='';
+  document.getElementById('fSousCategorie').value='';
+  document.getElementById('fPersonnes').value='';
+  document.getElementById('fTemps').value='';
+  document.getElementById('fRemarque').value='';
+  document.getElementById('photoPreview').style.display='none';
+  currentPhoto = '';
+  currentIngredients = [];
+  currentSteps = [''];
+  renderIngList();
+  renderSteps();
+  document.getElementById('saveMsg').innerHTML='';
+}
+
+function handlePhoto(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const canvas = document.createElement('canvas');
+      const maxW = 800;
+      const scale = Math.min(1, maxW/img.width);
+      canvas.width = img.width*scale;
+      canvas.height = img.height*scale;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      currentPhoto = canvas.toDataURL('image/jpeg', 0.75);
+      const prev = document.getElementById('photoPreview');
+      prev.src = currentPhoto;
+      prev.style.display = 'block';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderIngSuggest(){
+  const q = document.getElementById('ingSearch').value.toLowerCase().trim();
+  const box = document.getElementById('ingSuggest');
+  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = ALIMENTS.filter(a=>a.nom.toLowerCase().includes(q)).slice(0,15);
+  if(!matches.length){ box.style.display='none'; return; }
+  box.innerHTML = matches.map(a=>`<div onclick="pickIngredient('${escapeAttr(a.nom)}', ${a.ig})">
+    <span>${escapeHtml(a.nom)}</span><span class="ig-pill ${igCls(a.ig)}">${a.ig}</span>
+  </div>`).join('');
+  box.style.display='block';
+}
+function escapeAttr(s){ return s.replace(/'/g,"\\'"); }
+
+function pickIngredient(nom, ig){
+  currentIngredients.push({nom, ig, qty:''});
+  document.getElementById('ingSearch').value='';
+  document.getElementById('ingSuggest').style.display='none';
+  renderIngList();
+}
+function removeIngredient(idx){ currentIngredients.splice(idx,1); renderIngList(); }
+function updateQty(idx, val){ currentIngredients[idx].qty = val; }
+
+function renderIngList(){
+  const ul = document.getElementById('ingList');
+  ul.innerHTML = currentIngredients.map((i,idx)=>`<li>
+    <input class="qty" placeholder="Quantité" value="${escapeHtml(i.qty)}" oninput="updateQty(${idx}, this.value)">
+    <span class="name">${escapeHtml(i.nom)}</span>
+    <span class="ig-pill ${igCls(i.ig)}">${i.ig}</span>
+    <button class="rm" onclick="removeIngredient(${idx})">&times;</button>
+  </li>`).join('');
+}
+
+function addStep(){ currentSteps.push(''); renderSteps(); }
+function removeStep(idx){ currentSteps.splice(idx,1); renderSteps(); }
+function updateStep(idx, val){ currentSteps[idx]=val; }
+function renderSteps(){
+  const wrap = document.getElementById('stepsWrap');
+  wrap.innerHTML = currentSteps.map((s,idx)=>`<div class="step-row">
+    <div class="step-num">${idx+1}</div>
+    <textarea oninput="updateStep(${idx}, this.value)" placeholder="Décrire l'étape...">${escapeHtml(s)}</textarea>
+    <button class="rm" onclick="removeStep(${idx})">&times;</button>
+  </div>`).join('');
+}
+
+async function saveRecette(){
+  const titre = document.getElementById('fTitre').value.trim();
+  const msg = document.getElementById('saveMsg');
+  if(!titre){ msg.innerHTML = '<div class="msg err">Le titre est obligatoire.</div>'; return; }
+  if(!currentIngredients.length){ msg.innerHTML = '<div class="msg err">Ajoute au moins un ingrédient.</div>'; return; }
+
+  const nextFiche = (D.recettes.reduce((m,r)=>Math.max(m, r.ficheNum||0),0)) + 1;
+  const recette = {
+    id: 'r-' + Date.now(),
+    ficheNum: nextFiche,
+    titre,
+    categorie: document.getElementById('fCategorie').value,
+    sousCategorie: document.getElementById('fSousCategorie').value.trim(),
+    niveau: document.getElementById('fNiveau').value,
+    classification: document.getElementById('fClassification').value,
+    personnes: document.getElementById('fPersonnes').value.trim(),
+    temps: document.getElementById('fTemps').value.trim(),
+    photo: currentPhoto,
+    ingredients: currentIngredients,
+    etapes: currentSteps.filter(s=>s.trim()),
+    remarque: document.getElementById('fRemarque').value.trim()
+  };
+  D.recettes.push(recette);
+  await persist();
+  msg.innerHTML = '<div class="msg ok">Recette enregistrée !</div>';
+  setTimeout(()=>{ setView('catalogue'); }, 700);
+}
+
+// ===================== INIT =====================
+loadData();
+loadAliments();
+renderCatBar();
+</script>
+</body>
+</html>
