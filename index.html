@@ -2,12 +2,13 @@
 <html lang="fr">
 <head>
 <!--
-  VERSION : v1 - 04/09/2026
+  VERSION : v2 - 06/09/2026
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
-  Fichiers precedents : aucun (première version).
+    - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
+  Fichiers precedents : v1 (04/09/2026).
 -->
-<meta name="app-version" content="v1-2026-09-04">
+<meta name="app-version" content="v2-2026-09-06">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -103,6 +104,8 @@
   .add-btn{background:none;border:1.5px dashed var(--herb);color:var(--herb-dark);font-family:inherit;font-weight:600;font-size:16px;padding:11px 16px;border-radius:12px;cursor:pointer;width:100%;}
 
   .save-btn{margin-top:24px;width:100%;background:var(--ochre);color:#fff;border:none;border-radius:14px;padding:17px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
+  .edit-btn{margin-top:12px;width:100%;background:var(--paper);color:var(--ochre-dark);border:2px solid var(--ochre);border-radius:14px;padding:15px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
+  .badge-new{display:inline-block;background:var(--ochre);color:#fff;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;}
   .save-note{text-align:center;font-size:13px;color:var(--muted);margin-top:10px;}
   .msg{text-align:center;font-size:15px;font-weight:600;margin-top:12px;padding:10px;border-radius:10px;}
   .msg.ok{background:var(--ig-b-bg);color:var(--ig-b-fg);}
@@ -149,7 +152,7 @@
     <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v1 &bull; 04/09/2026</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
-      <button id="tabAdmin" onclick="setView('admin')">Ajouter une recette</button>
+      <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
     </nav>
   </header>
 
@@ -277,6 +280,7 @@ let currentSteps = [];
 let currentPhoto = "";
 let currentCat = "Toutes";
 let currentRecetteId = null;
+let editingId = null;
 
 // ===================== CHARGEMENT =====================
 async function loadData(){
@@ -340,6 +344,10 @@ function igMoyen(ingredients){
   const sum = ingredients.reduce((s,i)=>s+(i.ig||0),0);
   return Math.round(sum/ingredients.length);
 }
+function estNouveau(r){
+  if(!r.dateCreation) return false;
+  return (Date.now() - r.dateCreation) < 15*24*60*60*1000;
+}
 
 // ===================== CATALOGUE =====================
 function renderCatBar(){
@@ -360,7 +368,7 @@ function renderCatalogue(){
   grid.innerHTML = list.map(r=>{
     const ig = igMoyen(r.ingredients);
     return `<div class="rcard" onclick="openDetail('${r.id}')">
-      <div class="fiche-num">Fiche n° ${r.ficheNum}</div>
+      <div class="fiche-num">Fiche n° ${r.ficheNum}${estNouveau(r)?' <span class="badge-new">Nouveau</span>':''}</div>
       <h3>${escapeHtml(r.titre)}</h3>
       <div class="meta">
         <span>${escapeHtml(r.categorie)}</span>
@@ -416,6 +424,7 @@ function openDetail(id){
     </div>
     <div class="cta-bar">
       <button class="download-btn" onclick="window.print()">Télécharger la recette en PDF</button>
+      <button class="edit-btn" onclick="editRecette('${r.id}')">Modifier cette recette</button>
     </div>
   `;
   document.getElementById('detailContent').innerHTML = html;
@@ -423,7 +432,45 @@ function openDetail(id){
 }
 
 // ===================== FORMULAIRE SAISIE =====================
+function startNewRecette(){
+  editingId = null;
+  setView('admin');
+}
+
+function editRecette(id){
+  const r = D.recettes.find(x=>x.id===id);
+  if(!r) return;
+  editingId = id;
+  document.getElementById('viewCatalogue').style.display = 'none';
+  document.getElementById('viewDetail').style.display = 'none';
+  document.getElementById('viewAdmin').style.display = '';
+  document.getElementById('tabCatalogue').classList.remove('active');
+  document.getElementById('tabAdmin').classList.add('active');
+  document.querySelector('.form-title').textContent = 'Modifier la recette';
+
+  document.getElementById('fTitre').value = r.titre || '';
+  document.getElementById('fCategorie').value = r.categorie || 'Plats';
+  document.getElementById('fSousCategorie').value = r.sousCategorie || '';
+  document.getElementById('fNiveau').value = r.niveau || 'Simple';
+  document.getElementById('fClassification').value = r.classification || 'IG BAS - PL';
+  document.getElementById('fPersonnes').value = r.personnes || '';
+  document.getElementById('fTemps').value = r.temps || '';
+  currentPhoto = r.photo || '';
+  const prev = document.getElementById('photoPreview');
+  if(currentPhoto){ prev.src = currentPhoto; prev.style.display = 'block'; }
+  else { prev.style.display = 'none'; }
+  currentIngredients = (r.ingredients || []).map(i => ({...i}));
+  currentSteps = (r.etapes && r.etapes.length) ? r.etapes.slice() : [''];
+  renderIngList();
+  renderSteps();
+  document.getElementById('fRemarque').value = r.remarque || '';
+  document.getElementById('saveMsg').innerHTML = '';
+  window.scrollTo(0,0);
+}
+
 function resetForm(){
+  editingId = null;
+  document.querySelector('.form-title').textContent = 'Ajouter une recette';
   document.getElementById('fTitre').value='';
   document.getElementById('fSousCategorie').value='';
   document.getElementById('fPersonnes').value='';
@@ -511,10 +558,7 @@ async function saveRecette(){
   if(!titre){ msg.innerHTML = '<div class="msg err">Le titre est obligatoire.</div>'; return; }
   if(!currentIngredients.length){ msg.innerHTML = '<div class="msg err">Ajoute au moins un ingrédient.</div>'; return; }
 
-  const nextFiche = (D.recettes.reduce((m,r)=>Math.max(m, r.ficheNum||0),0)) + 1;
-  const recette = {
-    id: 'r-' + Date.now(),
-    ficheNum: nextFiche,
+  const champsCommuns = {
     titre,
     categorie: document.getElementById('fCategorie').value,
     sousCategorie: document.getElementById('fSousCategorie').value.trim(),
@@ -527,7 +571,20 @@ async function saveRecette(){
     etapes: currentSteps.filter(s=>s.trim()),
     remarque: document.getElementById('fRemarque').value.trim()
   };
-  D.recettes.push(recette);
+
+  if(editingId){
+    const idx = D.recettes.findIndex(x=>x.id===editingId);
+    if(idx>-1){ D.recettes[idx] = {...D.recettes[idx], ...champsCommuns}; }
+    editingId = null;
+  }else{
+    const nextFiche = (D.recettes.reduce((m,r)=>Math.max(m, r.ficheNum||0),0)) + 1;
+    D.recettes.push({
+      id: 'r-' + Date.now(),
+      ficheNum: nextFiche,
+      dateCreation: Date.now(),
+      ...champsCommuns
+    });
+  }
   await persist();
   msg.innerHTML = '<div class="msg ok">Recette enregistrée !</div>';
   setTimeout(()=>{ setView('catalogue'); }, 700);
