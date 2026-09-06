@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestion des aliments et IG — IGBas</title>
+<style>
+  :root{
+    --vert: #6ba644;
+    --vert-fonce: #4d7d30;
+    --rouge: #c0392b;
+    --orange: #d98c1f;
+    --fond: #f7f8f5;
+    --carte: #ffffff;
+    --texte: #222222;
+    --gris: #666666;
+    --bord: #dcdfd6;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:'DM Sans','Outfit',Arial,sans-serif;
+    background:var(--fond);
+    color:var(--texte);
+    margin:0;
+    padding:24px;
+    font-size:20px;
+    line-height:1.6;
+  }
+  h1{
+    font-size:28px;
+    color:var(--vert-fonce);
+    margin:0 0 6px 0;
+  }
+  .sous-titre{
+    color:var(--gris);
+    margin:0 0 24px 0;
+    font-size:20px;
+  }
+  .barre-haute{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    margin-bottom:20px;
+    align-items:center;
+  }
+  input[type="text"], input[type="number"]{
+    font-size:20px;
+    padding:12px 14px;
+    border:2px solid var(--bord);
+    border-radius:10px;
+    font-family:inherit;
+  }
+  #recherche{
+    flex:1;
+    min-width:220px;
+  }
+  button{
+    font-size:18px;
+    padding:12px 20px;
+    border-radius:10px;
+    border:none;
+    cursor:pointer;
+    font-family:inherit;
+    font-weight:600;
+  }
+  .btn-principal{
+    background:var(--vert);
+    color:white;
+  }
+  .btn-principal:hover{background:var(--vert-fonce);}
+  .btn-secondaire{
+    background:white;
+    border:2px solid var(--bord);
+    color:var(--texte);
+  }
+  .btn-danger{
+    background:#fdeceb;
+    color:var(--rouge);
+    border:2px solid #f3c7c2;
+  }
+  .btn-danger:hover{background:var(--rouge); color:white;}
+  #compteur{
+    color:var(--gris);
+    font-size:18px;
+    margin-bottom:16px;
+  }
+  .carte-aliment{
+    background:var(--carte);
+    border:1px solid var(--bord);
+    border-radius:12px;
+    padding:16px 18px;
+    margin-bottom:12px;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:14px;
+  }
+  .nom-aliment{
+    flex:1;
+    min-width:200px;
+    font-size:20px;
+  }
+  .nom-aliment input{
+    width:100%;
+  }
+  .badge-ig{
+    display:inline-block;
+    padding:8px 14px;
+    border-radius:20px;
+    font-weight:700;
+    font-size:18px;
+    min-width:50px;
+    text-align:center;
+  }
+  .ig-bas{background:#e3f3da; color:#3d6b25;}
+  .ig-modere{background:#fff3d6; color:#8a6414;}
+  .ig-eleve{background:#fde3d6; color:#a04a1a;}
+  .ig-tres-eleve{background:#fbd9d6; color:var(--rouge);}
+  .champ-ig{
+    width:80px;
+  }
+  .actions-carte{
+    display:flex;
+    gap:8px;
+  }
+  .alerte{
+    background:#fff3d6;
+    border:2px solid var(--orange);
+    color:#7a5a10;
+    padding:14px 18px;
+    border-radius:10px;
+    margin-bottom:20px;
+    font-size:19px;
+  }
+  .zone-nouveau{
+    background:var(--carte);
+    border:2px dashed var(--vert);
+    border-radius:12px;
+    padding:18px;
+    margin-bottom:24px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    align-items:center;
+  }
+  .zone-nouveau input[type="text"]{flex:2; min-width:200px;}
+  .zone-nouveau input[type="number"]{width:100px;}
+  #message-etat{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    background:var(--vert-fonce);
+    color:white;
+    padding:14px 22px;
+    border-radius:10px;
+    font-size:18px;
+    display:none;
+    box-shadow:0 4px 12px rgba(0,0,0,0.2);
+  }
+  .pied-page{
+    margin-top:30px;
+    padding-top:20px;
+    border-top:1px solid var(--bord);
+    color:var(--gris);
+    font-size:17px;
+  }
+  @media (max-width:480px){
+    body{padding:14px; font-size:19px;}
+    .carte-aliment{flex-direction:column; align-items:stretch;}
+    .actions-carte{justify-content:flex-end;}
+  }
+</style>
+</head>
+<body>
+
+<h1>Aliments &amp; Index Glycémique</h1>
+<p class="sous-titre">Liste partagée — Bernard &amp; Marie-Laure</p>
+
+<div class="alerte" id="alerte-anomalie" style="display:none;">
+  ⚠️ Un aliment a un nom incomplet (probablement coupé lors d'un ancien copier-coller). Corrige-le directement ci-dessous, ou clique sur « Ignorer » pour ne plus voir ce message.
+  <div style="margin-top:10px;">
+    <button class="btn-secondaire" onclick="document.getElementById('alerte-anomalie').style.display='none'">Ignorer</button>
+  </div>
+</div>
+
+<div class="zone-nouveau">
+  <input type="text" id="nouveau-nom" placeholder="Nom du nouvel aliment">
+  <input type="number" id="nouveau-ig" placeholder="IG" min="0" max="110">
+  <button class="btn-principal" onclick="ajouterAliment()">+ Ajouter un aliment</button>
+</div>
+
+<div class="barre-haute">
+  <input type="text" id="recherche" placeholder="🔍 Rechercher un aliment…" oninput="filtrerEtAfficher()">
+  <button class="btn-secondaire" onclick="exporterJSON()">⬇ Télécharger aliments.json</button>
+</div>
+
+<div id="compteur"></div>
+<div id="liste-aliments"></div>
+
+<div class="pied-page">
+  Après tes modifications, télécharge le fichier <strong>aliments.json</strong> mis à jour et remplace-le dans le dépôt GitHub <em>bernard-igbas/recettes-igbas</em> (via l'éditeur web GitHub, comme d'habitude). Les changements seront alors visibles partout où la liste est utilisée.
+</div>
+
+<div id="message-etat"></div>
+
+<script>
+let aliments = [];
+
+// Chargement initial : on tente de lire aliments.json à côté de cette page.
+// Si la page est ouverte seule (sans être déployée avec le fichier), on part d'une liste vide.
+fetch('aliments.json')
+  .then(r => { if(!r.ok) throw new Error('non trouvé'); return r.json(); })
+  .then(data => {
+    aliments = data;
+    verifierAnomalies();
+    filtrerEtAfficher();
+  })
+  .catch(() => {
+    document.getElementById('liste-aliments').innerHTML =
+      '<div class="alerte">Le fichier <strong>aliments.json</strong> n\'a pas été trouvé à côté de cette page. Dépose ce fichier HTML dans le même dossier que aliments.json (sur recettes-igbas) pour que la liste se charge automatiquement.</div>';
+    document.getElementById('compteur').textContent = '';
+  });
+
+function verifierAnomalies(){
+  const suspect = aliments.find(a => a.nom.trim().length < 3 || a.nom.trim().startsWith(')') || /^[^A-Za-zÀ-ÿ]/.test(a.nom.trim()));
+  if(suspect){
+    document.getElementById('alerte-anomalie').style.display = 'block';
+  }
+}
+
+function classeIG(ig){
+  if(ig <= 35) return 'ig-bas';
+  if(ig <= 55) return 'ig-modere';
+  if(ig <= 70) return 'ig-eleve';
+  return 'ig-tres-eleve';
+}
+
+function filtrerEtAfficher(){
+  const terme = document.getElementById('recherche').value.trim().toLowerCase();
+  const filtres = aliments
+    .map((a, i) => ({...a, index: i}))
+    .filter(a => a.nom.toLowerCase().includes(terme))
+    .sort((a,b) => a.nom.localeCompare(b.nom, 'fr'));
+
+  document.getElementById('compteur').textContent =
+    filtres.length + ' aliment(s) sur ' + aliments.length;
+
+  const conteneur = document.getElementById('liste-aliments');
+  conteneur.innerHTML = '';
+
+  filtres.forEach(a => {
+    const carte = document.createElement('div');
+    carte.className = 'carte-aliment';
+    carte.innerHTML = `
+      <div class="nom-aliment">
+        <input type="text" value="${escapeHtml(a.nom)}" onchange="renommerAliment(${a.index}, this.value)">
+      </div>
+      <span class="badge-ig ${classeIG(a.ig)}">IG ${a.ig}</span>
+      <input type="number" class="champ-ig" value="${a.ig}" min="0" max="110" onchange="modifierIG(${a.index}, this.value)">
+      <div class="actions-carte">
+        <button class="btn-danger" onclick="supprimerAliment(${a.index})">Supprimer</button>
+      </div>
+    `;
+    conteneur.appendChild(carte);
+  });
+}
+
+function escapeHtml(texte){
+  const div = document.createElement('div');
+  div.textContent = texte;
+  return div.innerHTML;
+}
+
+function renommerAliment(index, nouveauNom){
+  nouveauNom = nouveauNom.trim();
+  if(!nouveauNom){ afficherMessage('Le nom ne peut pas être vide.'); filtrerEtAfficher(); return; }
+  aliments[index].nom = nouveauNom;
+  afficherMessage('Aliment renommé.');
+  filtrerEtAfficher();
+}
+
+function modifierIG(index, nouvelIG){
+  const val = parseInt(nouvelIG, 10);
+  if(isNaN(val) || val < 0 || val > 110){ afficherMessage('IG invalide (doit être entre 0 et 110).'); filtrerEtAfficher(); return; }
+  aliments[index].ig = val;
+  afficherMessage('Indice glycémique mis à jour.');
+  filtrerEtAfficher();
+}
+
+function supprimerAliment(index){
+  if(!confirm('Supprimer "' + aliments[index].nom + '" ? Cette action est irréversible dans ce fichier de travail.')) return;
+  aliments.splice(index, 1);
+  afficherMessage('Aliment supprimé.');
+  filtrerEtAfficher();
+}
+
+function ajouterAliment(){
+  const nomChamp = document.getElementById('nouveau-nom');
+  const igChamp = document.getElementById('nouveau-ig');
+  const nom = nomChamp.value.trim();
+  const ig = parseInt(igChamp.value, 10);
+
+  if(!nom){ afficherMessage('Indique un nom d\\'aliment.'); return; }
+  if(isNaN(ig) || ig < 0 || ig > 110){ afficherMessage('Indique un IG valide (0 à 110).'); return; }
+  if(aliments.some(a => a.nom.toLowerCase() === nom.toLowerCase())){
+    afficherMessage('Cet aliment existe déjà dans la liste.');
+    return;
+  }
+
+  aliments.push({nom: nom, ig: ig});
+  nomChamp.value = '';
+  igChamp.value = '';
+  afficherMessage('Aliment ajouté.');
+  filtrerEtAfficher();
+}
+
+function exporterJSON(){
+  const contenu = JSON.stringify(aliments, null, 2);
+  const blob = new Blob([contenu], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const lien = document.createElement('a');
+  lien.href = url;
+  lien.download = 'aliments.json';
+  lien.click();
+  URL.revokeObjectURL(url);
+  afficherMessage('Fichier téléchargé — pense à le déposer sur GitHub.');
+}
+
+function afficherMessage(texte){
+  const zone = document.getElementById('message-etat');
+  zone.textContent = texte;
+  zone.style.display = 'block';
+  clearTimeout(zone._timeout);
+  zone._timeout = setTimeout(() => { zone.style.display = 'none'; }, 3000);
+}
+</script>
+
+</body>
+</html>
