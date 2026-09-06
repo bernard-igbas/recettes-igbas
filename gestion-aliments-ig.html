@@ -319,7 +319,7 @@ function ajouterAliment(){
   const nom = nomChamp.value.trim();
   const ig = parseInt(igChamp.value, 10);
 
-  if(!nom){ afficherMessage('Indique un nom d\\'aliment.'); return; }
+  if(!nom){ afficherMessage("Indique un nom d'aliment."); return; }
   if(isNaN(ig) || ig < 0 || ig > 110){ afficherMessage('Indique un IG valide (0 à 110).'); return; }
   if(aliments.some(a => a.nom.toLowerCase() === nom.toLowerCase())){
     afficherMessage('Cet aliment existe déjà dans la liste.');
