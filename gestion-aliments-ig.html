@@ -195,7 +195,9 @@
 </div>
 
 <div id="compteur"></div>
-<div id="liste-aliments"></div>
+<div id="liste-aliments">
+  <p style="color:var(--gris);">Chargement des aliments…</p>
+</div>
 
 <div class="pied-page">
   Après tes modifications, télécharge le fichier <strong>aliments.json</strong> mis à jour et remplace-le dans le dépôt GitHub <em>bernard-igbas/recettes-igbas</em> (via l'éditeur web GitHub, comme d'habitude). Les changements seront alors visibles partout où la liste est utilisée.
@@ -206,18 +208,35 @@
 <script>
 let aliments = [];
 
-// Chargement initial : on tente de lire aliments.json à côté de cette page.
-// Si la page est ouverte seule (sans être déployée avec le fichier), on part d'une liste vide.
-fetch('aliments.json')
-  .then(r => { if(!r.ok) throw new Error('non trouvé'); return r.json(); })
-  .then(data => {
-    aliments = data;
+// Adresse absolue du fichier, pour éviter tout souci de résolution de chemin relatif
+// selon l'URL exacte affichée (avec ou sans .html, avec ou sans / final).
+const URL_ALIMENTS = new URL('aliments.json', window.location.href).href;
+
+fetch(URL_ALIMENTS, {cache: 'no-store'})
+  .then(r => {
+    if(!r.ok) throw new Error('Réponse HTTP ' + r.status + ' pour ' + URL_ALIMENTS);
+    return r.text();
+  })
+  .then(texte => {
+    let data;
+    try{
+      data = JSON.parse(texte);
+    }catch(e){
+      throw new Error('Le fichier récupéré n\'est pas un JSON valide (peut-être une page d\'erreur renvoyée à la place). Adresse essayée : ' + URL_ALIMENTS);
+    }
+    if(!Array.isArray(data)) throw new Error('Format inattendu : ce n\'est pas une liste.');
+
+    aliments = data
+      .filter(a => a && typeof a.nom === 'string')
+      .map(a => ({nom: a.nom, ig: Number.isFinite(a.ig) ? a.ig : 0}));
+
     verifierAnomalies();
     filtrerEtAfficher();
   })
-  .catch(() => {
+  .catch(err => {
     document.getElementById('liste-aliments').innerHTML =
-      '<div class="alerte">Le fichier <strong>aliments.json</strong> n\'a pas été trouvé à côté de cette page. Dépose ce fichier HTML dans le même dossier que aliments.json (sur recettes-igbas) pour que la liste se charge automatiquement.</div>';
+      '<div class="alerte">Impossible de charger la liste des aliments.<br><br>' +
+      '<strong>Détail technique :</strong> ' + escapeHtml(err.message) + '</div>';
     document.getElementById('compteur').textContent = '';
   });
 
