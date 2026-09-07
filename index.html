@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  VERSION : v6 - 07/09/2026
+  VERSION : v7 - 07/09/2026
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -10,9 +10,10 @@
     - v4 : ajout bouton "Supprimer cette recette" sur la fiche détail, avec confirmation avant suppression définitive
     - v5 : correctif — l'assistant d'import ignorait la sous-catégorie fournie dans le lot (toujours vide) ; elle est maintenant bien reprise (ex. "Entrée chaude", "Entrée froide", "Plats Viande", "Plats Poisson", "Plat unique")
     - v6 : possibilité de créer une nouvelle catégorie directement depuis le formulaire (option "➕ Nouvelle catégorie…") ; suggestions automatiques de sous-catégories déjà utilisées ; changer la catégorie/sous-catégorie d'une recette existante se fait via "Modifier cette recette" (déjà disponible depuis v2)
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026).
+    - v7 : la sous-catégorie devient elle aussi un menu déroulant (comme la catégorie), pré-rempli avec les 5 sous-catégories connues de la structure réelle (Entrée chaude, Entrée froide, Plat unique, Plats Poisson, Plats Viande) + option "➕ Nouvelle sous-catégorie…"
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026).
 -->
-<meta name="app-version" content="v6-2026-09-07">
+<meta name="app-version" content="v7-2026-09-07">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -163,7 +164,7 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v6 &bull; 07/09/2026</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v7 &bull; 07/09/2026</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -221,12 +222,13 @@
         </div>
         <div class="field">
           <label>Sous-catégorie (optionnel)</label>
-          <input type="text" id="fSousCategorie" placeholder="Ex. Plats Viandes" list="listeSousCategories">
-          <datalist id="listeSousCategories"></datalist>
+          <select id="fSousCategorie" onchange="gererChangementSousCategorie()">
+            <option value="">(aucune)</option>
+          </select>
         </div>
       </div>
       <div class="field" style="margin-top:-8px;margin-bottom:14px;">
-        <span class="save-note" style="margin:0;">Catégorie manquante ? Choisis « ➕ Nouvelle catégorie… » dans la liste. La sous-catégorie se tape librement (ex. Entrée chaude, Plats Viande, Plat unique).</span>
+        <span class="save-note" style="margin:0;">Catégorie ou sous-catégorie manquante ? Choisis « ➕ Nouvelle… » tout en bas de chaque liste.</span>
       </div>
 
       <div class="field-row">
@@ -346,43 +348,66 @@ async function persist(){
 
 // ===================== CATÉGORIES & SOUS-CATÉGORIES =====================
 const CATEGORIES_BASE = ['Petits Déjeuners','Entrées','Accompagnements','Plats','Desserts'];
-const OPTION_NOUVELLE = '➕ Nouvelle catégorie…';
+const SOUS_CATEGORIES_BASE = ['Entrée chaude','Entrée froide','Plat unique','Plats Poisson','Plats Viande'];
+const OPTION_NOUVELLE_CAT = '➕ Nouvelle catégorie…';
+const OPTION_NOUVELLE_SOUSCAT = '➕ Nouvelle sous-catégorie…';
 
 function actualiserListesCategories(){
   // Catégories : les 5 de base + toutes celles déjà utilisées dans les recettes, sans doublon.
   const categoriesUtilisees = [...new Set((D.recettes||[]).map(r => r.categorie).filter(Boolean))];
   const toutesCategories = [...new Set([...CATEGORIES_BASE, ...categoriesUtilisees])];
 
-  const select = document.getElementById('fCategorie');
-  const valeurActuelle = select.value;
-  select.innerHTML = toutesCategories.map(c => `<option>${escapeHtml(c)}</option>`).join('')
-    + `<option value="${OPTION_NOUVELLE}">${OPTION_NOUVELLE}</option>`;
-  if(toutesCategories.includes(valeurActuelle)){ select.value = valeurActuelle; }
+  const selectCat = document.getElementById('fCategorie');
+  const valeurCatActuelle = selectCat.value;
+  selectCat.innerHTML = toutesCategories.map(c => `<option>${escapeHtml(c)}</option>`).join('')
+    + `<option value="${OPTION_NOUVELLE_CAT}">${OPTION_NOUVELLE_CAT}</option>`;
+  if(toutesCategories.includes(valeurCatActuelle)){ selectCat.value = valeurCatActuelle; }
 
-  // Sous-catégories : suggestions basées sur celles déjà utilisées (toutes catégories confondues).
+  // Sous-catégories : les 5 connues de la structure de dossiers + celles déjà utilisées, sans doublon.
   const sousCategoriesUtilisees = [...new Set((D.recettes||[]).map(r => r.sousCategorie).filter(Boolean))];
-  document.getElementById('listeSousCategories').innerHTML =
-    sousCategoriesUtilisees.map(sc => `<option value="${escapeHtml(sc)}"></option>`).join('');
+  const toutesSousCategories = [...new Set([...SOUS_CATEGORIES_BASE, ...sousCategoriesUtilisees])];
+
+  const selectSousCat = document.getElementById('fSousCategorie');
+  const valeurSousCatActuelle = selectSousCat.value;
+  selectSousCat.innerHTML = `<option value="">(aucune)</option>`
+    + toutesSousCategories.map(sc => `<option>${escapeHtml(sc)}</option>`).join('')
+    + `<option value="${OPTION_NOUVELLE_SOUSCAT}">${OPTION_NOUVELLE_SOUSCAT}</option>`;
+  if([...toutesSousCategories,''].includes(valeurSousCatActuelle)){ selectSousCat.value = valeurSousCatActuelle; }
+}
+
+function ajouterOptionSiAbsente(select, valeur, optionSentinelle){
+  const existe = Array.from(select.options).some(o => o.value === valeur);
+  if(!existe){
+    const nouvelleOption = document.createElement('option');
+    nouvelleOption.value = valeur;
+    nouvelleOption.textContent = valeur;
+    select.insertBefore(nouvelleOption, select.querySelector(`option[value="${optionSentinelle}"]`));
+  }
+  select.value = valeur;
 }
 
 function gererChangementCategorie(){
   const select = document.getElementById('fCategorie');
-  if(select.value !== OPTION_NOUVELLE) return;
+  if(select.value !== OPTION_NOUVELLE_CAT) return;
   const nom = prompt('Nom de la nouvelle catégorie :');
   if(nom && nom.trim()){
-    const nomPropre = nom.trim();
-    const optionExistante = Array.from(select.options).find(o => o.value === nomPropre);
-    if(!optionExistante){
-      const nouvelleOption = document.createElement('option');
-      nouvelleOption.value = nomPropre;
-      nouvelleOption.textContent = nomPropre;
-      select.insertBefore(nouvelleOption, select.querySelector(`option[value="${OPTION_NOUVELLE}"]`));
-    }
-    select.value = nomPropre;
+    ajouterOptionSiAbsente(select, nom.trim(), OPTION_NOUVELLE_CAT);
   }else{
     select.value = CATEGORIES_BASE[0];
   }
 }
+
+function gererChangementSousCategorie(){
+  const select = document.getElementById('fSousCategorie');
+  if(select.value !== OPTION_NOUVELLE_SOUSCAT) return;
+  const nom = prompt('Nom de la nouvelle sous-catégorie :');
+  if(nom && nom.trim()){
+    ajouterOptionSiAbsente(select, nom.trim(), OPTION_NOUVELLE_SOUSCAT);
+  }else{
+    select.value = '';
+  }
+}
+
 
 async function loadAliments(){
   try{
