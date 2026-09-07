@@ -2,14 +2,15 @@
 <html lang="fr">
 <head>
 <!--
-  VERSION : v3 - 06/09/2026
+  VERSION : v4 - 06/09/2026
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
     - v3 : ajout onglet "Importer un lot (PDF)" — colle un lot de recettes pré-analysées par Claude, vérifie chaque ingrédient un par un (rien n'est ajouté sans validation), puis enregistre et enchaîne automatiquement sur la recette suivante du lot ; ajout de l'option de classification "IG BAS - PL/GP"
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026).
+    - v4 : ajout bouton "Supprimer cette recette" sur la fiche détail, avec confirmation avant suppression définitive
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026).
 -->
-<meta name="app-version" content="v3-2026-09-06">
+<meta name="app-version" content="v4-2026-09-06">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -106,6 +107,7 @@
 
   .save-btn{margin-top:24px;width:100%;background:var(--ochre);color:#fff;border:none;border-radius:14px;padding:17px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
   .edit-btn{margin-top:12px;width:100%;background:var(--paper);color:var(--ochre-dark);border:2px solid var(--ochre);border-radius:14px;padding:15px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
+  .delete-btn{margin-top:12px;width:100%;background:#fdeceb;color:#c0392b;border:2px solid #f3c7c2;border-radius:14px;padding:15px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
   .badge-new{display:inline-block;background:var(--ochre);color:#fff;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;}
   .save-note{text-align:center;font-size:13px;color:var(--muted);margin-top:10px;}
   .import-textarea{width:100%;min-height:180px;font-family:monospace;font-size:13px;padding:12px;border:1px solid var(--line);border-radius:10px;box-sizing:border-box;margin-bottom:10px;}
@@ -159,7 +161,7 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v3 &bull; 06/09/2026</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v4 &bull; 06/09/2026</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -571,6 +573,7 @@ function openDetail(id){
     <div class="cta-bar">
       <button class="download-btn" onclick="window.print()">Télécharger la recette en PDF</button>
       <button class="edit-btn" onclick="editRecette('${r.id}')">Modifier cette recette</button>
+      <button class="delete-btn" onclick="supprimerRecette('${r.id}')">Supprimer cette recette</button>
     </div>
   `;
   document.getElementById('detailContent').innerHTML = html;
@@ -581,6 +584,15 @@ function openDetail(id){
 function startNewRecette(){
   editingId = null;
   setView('admin');
+}
+
+async function supprimerRecette(id){
+  const r = D.recettes.find(x=>x.id===id);
+  if(!r) return;
+  if(!confirm('Supprimer définitivement la recette « ' + r.titre + ' » ? Cette action ne peut pas être annulée.')) return;
+  D.recettes = D.recettes.filter(x=>x.id!==id);
+  await persist();
+  setView('catalogue');
 }
 
 function editRecette(id){
