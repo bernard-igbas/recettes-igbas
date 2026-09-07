@@ -2,13 +2,14 @@
 <html lang="fr">
 <head>
 <!--
-  VERSION : v2 - 06/09/2026
+  VERSION : v3 - 06/09/2026
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
-  Fichiers precedents : v1 (04/09/2026).
+    - v3 : ajout onglet "Importer un lot (PDF)" — colle un lot de recettes pré-analysées par Claude, vérifie chaque ingrédient un par un (rien n'est ajouté sans validation), puis enregistre et enchaîne automatiquement sur la recette suivante du lot ; ajout de l'option de classification "IG BAS - PL/GP"
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026).
 -->
-<meta name="app-version" content="v2-2026-09-06">
+<meta name="app-version" content="v3-2026-09-06">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -107,6 +108,15 @@
   .edit-btn{margin-top:12px;width:100%;background:var(--paper);color:var(--ochre-dark);border:2px solid var(--ochre);border-radius:14px;padding:15px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
   .badge-new{display:inline-block;background:var(--ochre);color:#fff;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;}
   .save-note{text-align:center;font-size:13px;color:var(--muted);margin-top:10px;}
+  .import-textarea{width:100%;min-height:180px;font-family:monospace;font-size:13px;padding:12px;border:1px solid var(--line);border-radius:10px;box-sizing:border-box;margin-bottom:10px;}
+  .import-banner{background:#fff3d6;border:2px solid var(--ochre);color:#7a5a10;padding:14px 18px;border-radius:10px;margin-bottom:18px;font-size:15px;font-weight:600;}
+  .ing-a-traiter{margin-top:14px;background:#fdf6ec;border:1px dashed var(--ochre);border-radius:10px;padding:12px;}
+  .ing-a-traiter-titre{font-weight:700;color:var(--ochre-dark);margin-bottom:8px;font-size:14px;}
+  .ing-a-traiter-item{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #eee;font-size:14px;}
+  .ing-a-traiter-item:last-child{border-bottom:none;}
+  .btn-suggestion, .btn-chercher{font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;}
+  .btn-suggestion{border-color:var(--ochre);color:var(--ochre-dark);}
+  .btn-skip{background:none;border:none;color:var(--ochre-dark);text-decoration:underline;cursor:pointer;font-size:14px;margin-left:12px;}
   .msg{text-align:center;font-size:15px;font-weight:600;margin-top:12px;padding:10px;border-radius:10px;}
   .msg.ok{background:var(--ig-b-bg);color:var(--ig-b-fg);}
   .msg.err{background:var(--ig-t-bg);color:var(--ig-t-fg);}
@@ -149,10 +159,11 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v1 &bull; 04/09/2026</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v3 &bull; 06/09/2026</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
+      <button id="tabImport" onclick="ouvrirImport()">Importer un lot (PDF)</button>
     </nav>
   </header>
 
@@ -170,9 +181,22 @@
     <div class="phone" id="detailContent"></div>
   </div>
 
+  <!-- ===== VUE IMPORT PDF ===== -->
+  <div id="viewImport" style="display:none;">
+    <div class="form-card">
+      <div class="form-title">Importer un lot de recettes (extraites de PDF)</div>
+      <p class="save-note" style="margin-bottom:14px;">Colle ici le bloc de texte que Claude t'a fourni après avoir analysé tes PDF, puis clique sur « Charger le lot ». Tu vérifieras ensuite chaque recette une par une avant de l'enregistrer — rien n'est ajouté sans ta validation.</p>
+      <textarea id="importJson" class="import-textarea" placeholder="Colle ici le contenu fourni..."></textarea>
+      <button class="save-btn" onclick="chargerLotImport()">Charger le lot</button>
+      <div id="importMsg"></div>
+      <button class="save-btn" id="btnCommencerImport" style="display:none;" onclick="suivanteImport()">Commencer la vérification</button>
+    </div>
+  </div>
+
   <!-- ===== VUE ADMIN (SAISIE) ===== -->
   <div id="viewAdmin" style="display:none;">
     <div class="form-card">
+      <div id="importBanner" class="import-banner" style="display:none;"></div>
       <div class="form-title">Ajouter une recette</div>
 
       <div class="field">
@@ -211,6 +235,7 @@
           <select id="fClassification">
             <option>IG BAS - PL</option>
             <option>IG BAS - GP</option>
+            <option>IG BAS - PL/GP</option>
           </select>
         </div>
       </div>
@@ -240,6 +265,7 @@
           <div class="ing-suggest" id="ingSuggest" style="display:none;"></div>
         </div>
         <ul class="ing-list" id="ingList"></ul>
+        <div id="ingATraiter" class="ing-a-traiter" style="display:none;"></div>
       </div>
 
       <div class="field">
@@ -315,8 +341,128 @@ async function loadAliments(){
   }catch(e){ ALIMENTS = []; }
 }
 
+// ===================== IMPORT PDF (LOT) =====================
+let importQueue = [];
+let importIndex = -1;
+
+function ouvrirImport(){
+  importQueue = []; importIndex = -1;
+  document.getElementById('viewCatalogue').style.display='none';
+  document.getElementById('viewDetail').style.display='none';
+  document.getElementById('viewAdmin').style.display='none';
+  document.getElementById('viewImport').style.display='';
+  document.getElementById('tabCatalogue').classList.remove('active');
+  document.getElementById('tabAdmin').classList.remove('active');
+  document.getElementById('tabImport').classList.add('active');
+  document.getElementById('importJson').value='';
+  document.getElementById('importMsg').innerHTML='';
+  document.getElementById('btnCommencerImport').style.display='none';
+  window.scrollTo(0,0);
+}
+
+function chargerLotImport(){
+  const txt = document.getElementById('importJson').value.trim();
+  const msg = document.getElementById('importMsg');
+  if(!txt){ msg.innerHTML = '<div class="msg err">Colle d\'abord le contenu fourni avant de charger.</div>'; return; }
+  try{
+    const data = JSON.parse(txt);
+    if(!Array.isArray(data) || !data.length) throw new Error('vide');
+    importQueue = data;
+  }catch(e){
+    msg.innerHTML = '<div class="msg err">Le contenu collé n\'est pas reconnu. Vérifie que tu as bien copié le bloc en entier.</div>';
+    return;
+  }
+  msg.innerHTML = '<div class="msg ok">'+importQueue.length+' recette(s) chargée(s) et prête(s) à être vérifiées.</div>';
+  document.getElementById('btnCommencerImport').style.display = 'inline-block';
+}
+
+function suivanteImport(){
+  importIndex++;
+  if(importIndex >= importQueue.length){
+    importIndex = -1;
+    setView('catalogue');
+    return;
+  }
+  chargerRecetteImport(importIndex);
+}
+
+function chargerRecetteImport(i){
+  const r = importQueue[i];
+  editingId = null;
+  document.getElementById('viewCatalogue').style.display = 'none';
+  document.getElementById('viewDetail').style.display = 'none';
+  document.getElementById('viewImport').style.display = 'none';
+  document.getElementById('viewAdmin').style.display = '';
+  document.getElementById('tabCatalogue').classList.remove('active');
+  document.getElementById('tabAdmin').classList.remove('active');
+  document.getElementById('tabImport').classList.remove('active');
+  document.querySelector('.form-title').textContent = 'Vérifier la recette importée';
+
+  const banner = document.getElementById('importBanner');
+  banner.style.display = 'block';
+  banner.innerHTML = 'Import PDF : recette ' + (i+1) + ' / ' + importQueue.length +
+    ' — vérifie chaque ingrédient avant d\'enregistrer.' +
+    ' <button class="btn-skip" onclick="suivanteImport()">Passer cette recette →</button>';
+
+  document.getElementById('fTitre').value = r.titre || '';
+  document.getElementById('fCategorie').value = r.categorie || 'Entrées';
+  document.getElementById('fSousCategorie').value = '';
+  document.getElementById('fNiveau').value = r.niveau || 'Simple';
+  document.getElementById('fClassification').value = r.classification || 'IG BAS - PL';
+  document.getElementById('fPersonnes').value = r.personnes || '';
+  document.getElementById('fTemps').value = [r.prepa, r.cuisson].filter(Boolean).join(' / ');
+  currentPhoto = '';
+  document.getElementById('photoPreview').style.display = 'none';
+
+  // Seuls les rapprochements très fiables sont ajoutés directement à la recette.
+  currentIngredients = (r.ingredients || [])
+    .filter(ing => ing.nom_matche && ing.confiance >= 1.3)
+    .map(ing => ({ nom: ing.nom_matche, ig: ing.ig, qty: ing.qty || '' }));
+  renderIngList();
+
+  // Tous les autres restent à valider un par un, jamais ajoutés seuls.
+  const aTraiter = (r.ingredients || []).filter(ing => !(ing.nom_matche && ing.confiance >= 1.3));
+  renderIngATraiter(aTraiter);
+
+  currentSteps = (r.etapes && r.etapes.length) ? r.etapes.slice() : [''];
+  renderSteps();
+  document.getElementById('fRemarque').value = r.remarque || '';
+  document.getElementById('saveMsg').innerHTML = '';
+  window.scrollTo(0,0);
+}
+
+function renderIngATraiter(liste){
+  const box = document.getElementById('ingATraiter');
+  if(!liste.length){ box.innerHTML=''; box.style.display='none'; return; }
+  box.style.display='block';
+  box.innerHTML = '<div class="ing-a-traiter-titre">Ingrédients du PDF à confirmer toi-même :</div>' +
+    liste.map(ing => `<div class="ing-a-traiter-item">
+      <span>${escapeHtml(ing.qty||'')} ${escapeHtml(ing.nom_pdf||'')}</span>
+      ${ing.nom_matche ? `<button class="btn-suggestion" onclick="validerSuggestion(this,'${escapeAttr(ing.nom_matche)}', ${ing.ig})">Utiliser « ${escapeHtml(ing.nom_matche)} » (IG ${ing.ig})</button>` : ''}
+      <button class="btn-chercher" onclick="chercherManuel(this,'${escapeAttr(ing.nom_pdf||'')}')">Chercher moi-même</button>
+    </div>`).join('');
+}
+
+function validerSuggestion(btn, nom, ig){
+  currentIngredients.push({nom, ig, qty:''});
+  renderIngList();
+  btn.closest('.ing-a-traiter-item').remove();
+}
+function chercherManuel(btn, nomPdf){
+  document.getElementById('ingSearch').value = nomPdf;
+  document.getElementById('ingSearch').focus();
+  renderIngSuggest();
+  btn.closest('.ing-a-traiter-item').style.opacity = '0.4';
+}
+
 // ===================== NAVIGATION =====================
 function setView(v){
+  importIndex = -1;
+  document.getElementById('importBanner').style.display = 'none';
+  document.getElementById('ingATraiter').innerHTML = '';
+  document.getElementById('ingATraiter').style.display = 'none';
+  document.getElementById('viewImport').style.display = 'none';
+  document.getElementById('tabImport').classList.remove('active');
   document.getElementById('viewCatalogue').style.display = v==='catalogue' ? '' : 'none';
   document.getElementById('viewDetail').style.display = v==='detail' ? '' : 'none';
   document.getElementById('viewAdmin').style.display = v==='admin' ? '' : 'none';
@@ -587,7 +733,11 @@ async function saveRecette(){
   }
   await persist();
   msg.innerHTML = '<div class="msg ok">Recette enregistrée !</div>';
-  setTimeout(()=>{ setView('catalogue'); }, 700);
+  if(importIndex > -1 && importIndex < importQueue.length){
+    setTimeout(()=>{ suivanteImport(); }, 700);
+  }else{
+    setTimeout(()=>{ setView('catalogue'); }, 700);
+  }
 }
 
 // ===================== INIT =====================
