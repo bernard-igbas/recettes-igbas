@@ -2,15 +2,17 @@
 <html lang="fr">
 <head>
 <!--
-  VERSION : v4 - 06/09/2026
+  VERSION : v6 - 07/09/2026
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
     - v3 : ajout onglet "Importer un lot (PDF)" — colle un lot de recettes pré-analysées par Claude, vérifie chaque ingrédient un par un (rien n'est ajouté sans validation), puis enregistre et enchaîne automatiquement sur la recette suivante du lot ; ajout de l'option de classification "IG BAS - PL/GP"
     - v4 : ajout bouton "Supprimer cette recette" sur la fiche détail, avec confirmation avant suppression définitive
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026).
+    - v5 : correctif — l'assistant d'import ignorait la sous-catégorie fournie dans le lot (toujours vide) ; elle est maintenant bien reprise (ex. "Entrée chaude", "Entrée froide", "Plats Viande", "Plats Poisson", "Plat unique")
+    - v6 : possibilité de créer une nouvelle catégorie directement depuis le formulaire (option "➕ Nouvelle catégorie…") ; suggestions automatiques de sous-catégories déjà utilisées ; changer la catégorie/sous-catégorie d'une recette existante se fait via "Modifier cette recette" (déjà disponible depuis v2)
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026).
 -->
-<meta name="app-version" content="v4-2026-09-06">
+<meta name="app-version" content="v6-2026-09-07">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -161,7 +163,7 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v4 &bull; 06/09/2026</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v6 &bull; 07/09/2026</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -209,7 +211,7 @@
       <div class="field-row">
         <div class="field">
           <label>Catégorie</label>
-          <select id="fCategorie">
+          <select id="fCategorie" onchange="gererChangementCategorie()">
             <option>Petits Déjeuners</option>
             <option>Entrées</option>
             <option>Accompagnements</option>
@@ -219,8 +221,12 @@
         </div>
         <div class="field">
           <label>Sous-catégorie (optionnel)</label>
-          <input type="text" id="fSousCategorie" placeholder="Ex. Plats Viandes">
+          <input type="text" id="fSousCategorie" placeholder="Ex. Plats Viandes" list="listeSousCategories">
+          <datalist id="listeSousCategories"></datalist>
         </div>
+      </div>
+      <div class="field" style="margin-top:-8px;margin-bottom:14px;">
+        <span class="save-note" style="margin:0;">Catégorie manquante ? Choisis « ➕ Nouvelle catégorie… » dans la liste. La sous-catégorie se tape librement (ex. Entrée chaude, Plats Viande, Plat unique).</span>
       </div>
 
       <div class="field-row">
@@ -318,6 +324,7 @@ async function loadData(){
   }catch(e){ fallbackLocal(); }
   if(!D || !D.recettes) fallbackLocal();
   renderCatalogue();
+  actualiserListesCategories();
 }
 function fallbackLocal(){
   try{
@@ -334,6 +341,47 @@ async function persist(){
       body: JSON.stringify(D)
     });
   }catch(e){ /* localStorage reste la sauvegarde de secours */ }
+  actualiserListesCategories();
+}
+
+// ===================== CATÉGORIES & SOUS-CATÉGORIES =====================
+const CATEGORIES_BASE = ['Petits Déjeuners','Entrées','Accompagnements','Plats','Desserts'];
+const OPTION_NOUVELLE = '➕ Nouvelle catégorie…';
+
+function actualiserListesCategories(){
+  // Catégories : les 5 de base + toutes celles déjà utilisées dans les recettes, sans doublon.
+  const categoriesUtilisees = [...new Set((D.recettes||[]).map(r => r.categorie).filter(Boolean))];
+  const toutesCategories = [...new Set([...CATEGORIES_BASE, ...categoriesUtilisees])];
+
+  const select = document.getElementById('fCategorie');
+  const valeurActuelle = select.value;
+  select.innerHTML = toutesCategories.map(c => `<option>${escapeHtml(c)}</option>`).join('')
+    + `<option value="${OPTION_NOUVELLE}">${OPTION_NOUVELLE}</option>`;
+  if(toutesCategories.includes(valeurActuelle)){ select.value = valeurActuelle; }
+
+  // Sous-catégories : suggestions basées sur celles déjà utilisées (toutes catégories confondues).
+  const sousCategoriesUtilisees = [...new Set((D.recettes||[]).map(r => r.sousCategorie).filter(Boolean))];
+  document.getElementById('listeSousCategories').innerHTML =
+    sousCategoriesUtilisees.map(sc => `<option value="${escapeHtml(sc)}"></option>`).join('');
+}
+
+function gererChangementCategorie(){
+  const select = document.getElementById('fCategorie');
+  if(select.value !== OPTION_NOUVELLE) return;
+  const nom = prompt('Nom de la nouvelle catégorie :');
+  if(nom && nom.trim()){
+    const nomPropre = nom.trim();
+    const optionExistante = Array.from(select.options).find(o => o.value === nomPropre);
+    if(!optionExistante){
+      const nouvelleOption = document.createElement('option');
+      nouvelleOption.value = nomPropre;
+      nouvelleOption.textContent = nomPropre;
+      select.insertBefore(nouvelleOption, select.querySelector(`option[value="${OPTION_NOUVELLE}"]`));
+    }
+    select.value = nomPropre;
+  }else{
+    select.value = CATEGORIES_BASE[0];
+  }
 }
 
 async function loadAliments(){
@@ -408,7 +456,7 @@ function chargerRecetteImport(i){
 
   document.getElementById('fTitre').value = r.titre || '';
   document.getElementById('fCategorie').value = r.categorie || 'Entrées';
-  document.getElementById('fSousCategorie').value = '';
+  document.getElementById('fSousCategorie').value = r.sousCategorie || '';
   document.getElementById('fNiveau').value = r.niveau || 'Simple';
   document.getElementById('fClassification').value = r.classification || 'IG BAS - PL';
   document.getElementById('fPersonnes').value = r.personnes || '';
