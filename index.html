@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
 <!--
-  VERSION : v7 - 07/09/2026
+<!--
+  recettes-igbas — v8 — 08/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -11,9 +12,10 @@
     - v5 : correctif — l'assistant d'import ignorait la sous-catégorie fournie dans le lot (toujours vide) ; elle est maintenant bien reprise (ex. "Entrée chaude", "Entrée froide", "Plats Viande", "Plats Poisson", "Plat unique")
     - v6 : possibilité de créer une nouvelle catégorie directement depuis le formulaire (option "➕ Nouvelle catégorie…") ; suggestions automatiques de sous-catégories déjà utilisées ; changer la catégorie/sous-catégorie d'une recette existante se fait via "Modifier cette recette" (déjà disponible depuis v2)
     - v7 : la sous-catégorie devient elle aussi un menu déroulant (comme la catégorie), pré-rempli avec les 5 sous-catégories connues de la structure réelle (Entrée chaude, Entrée froide, Plat unique, Plats Poisson, Plats Viande) + option "➕ Nouvelle sous-catégorie…"
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026).
+    - v8 : affichage du catalogue regroupé par sous-catégorie (colonnes avec titre "→ Nom de la sous-catégorie") dès qu'une catégorie précise est sélectionnée et qu'elle contient plusieurs sous-catégories ; liste de sous-catégories de base étendue à toute l'arborescence (Petits Déjeuners Salés/Sucrés, Plats Viande/Poisson & Crustacés/Mijotés & Sauces/Terroir, Desserts Pâtisseries/Crèmes/Glaces/Fruits/Mousses)
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026).
 -->
-<meta name="app-version" content="v7-2026-09-07">
+<meta name="app-version" content="v8-2026-09-08">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -59,6 +61,16 @@
 
   .card-grid{display:grid;grid-template-columns:1fr;gap:14px;}
   @media(min-width:640px){.card-grid{grid-template-columns:1fr 1fr;}}
+
+  .groupes-souscat{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;}
+  .groupe-souscat{flex:1 1 300px;min-width:280px;}
+  .groupe-souscat-titre{
+    display:flex;align-items:center;gap:8px;
+    font-size:20px;font-weight:800;color:var(--ochre-dark);
+    margin-bottom:14px;
+  }
+  .groupe-souscat-titre .fleche{font-size:20px;}
+  .groupe-souscat .card-grid{grid-template-columns:1fr;}
   .rcard{
     background:var(--paper);border-radius:16px;padding:18px 18px 16px;
     box-shadow:0 1px 3px rgba(34,48,29,.08);cursor:pointer;border:1.5px solid transparent;
@@ -164,7 +176,7 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v7 &bull; 07/09/2026</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v8 &bull; 08/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -348,7 +360,12 @@ async function persist(){
 
 // ===================== CATÉGORIES & SOUS-CATÉGORIES =====================
 const CATEGORIES_BASE = ['Petits Déjeuners','Entrées','Accompagnements','Plats','Desserts'];
-const SOUS_CATEGORIES_BASE = ['Entrée chaude','Entrée froide','Plat unique','Plats Poisson','Plats Viande'];
+const SOUS_CATEGORIES_BASE = [
+  'Petits Déjeuners Salés','Petits Déjeuners Sucrés',
+  'Entrée chaude','Entrée froide',
+  'Plat unique','Plats Viande','Plats Poisson & Crustacés','Plats Mijotés & Sauces','Plats Terroir',
+  'Desserts Pâtisseries','Desserts Crèmes','Desserts Glaces','Desserts Fruits','Desserts Mousses'
+];
 const OPTION_NOUVELLE_CAT = '➕ Nouvelle catégorie…';
 const OPTION_NOUVELLE_SOUSCAT = '➕ Nouvelle sous-catégorie…';
 
@@ -586,7 +603,8 @@ function renderCatalogue(){
   if(q) list = list.filter(r=>r.titre.toLowerCase().includes(q));
   const grid = document.getElementById('cardGrid');
   document.getElementById('emptyMsg').style.display = list.length? 'none':'block';
-  grid.innerHTML = list.map(r=>{
+
+  const carteHtml = r => {
     const ig = igMoyen(r.ingredients);
     return `<div class="rcard" onclick="openDetail('${r.id}')">
       <div class="fiche-num">Fiche n° ${r.ficheNum}${estNouveau(r)?' <span class="badge-new">Nouveau</span>':''}</div>
@@ -597,7 +615,34 @@ function renderCatalogue(){
         <span class="ig-pill ${igCls(ig)}">${igLabel(ig)}</span>
       </div>
     </div>`;
-  }).join('');
+  };
+
+  // Regroupement par sous-catégorie : uniquement quand une catégorie précise est
+  // sélectionnée (pas "Toutes") ET qu'au moins 2 sous-catégories différentes existent
+  // parmi les recettes affichées — sinon la grille simple reste plus lisible.
+  const sousCategoriesPresentes = [...new Set(list.map(r => r.sousCategorie).filter(Boolean))];
+
+  if(currentCat !== 'Toutes' && sousCategoriesPresentes.length >= 2){
+    const sansSousCat = list.filter(r => !r.sousCategorie);
+    let html = '<div class="groupes-souscat">';
+    sousCategoriesPresentes.forEach(sc => {
+      const recettesDuGroupe = list.filter(r => r.sousCategorie === sc);
+      html += `<div class="groupe-souscat">
+        <div class="groupe-souscat-titre"><span class="fleche">→</span> ${escapeHtml(sc)}</div>
+        <div class="card-grid">${recettesDuGroupe.map(carteHtml).join('')}</div>
+      </div>`;
+    });
+    if(sansSousCat.length){
+      html += `<div class="groupe-souscat">
+        <div class="groupe-souscat-titre"><span class="fleche">→</span> Autres</div>
+        <div class="card-grid">${sansSousCat.map(carteHtml).join('')}</div>
+      </div>`;
+    }
+    html += '</div>';
+    grid.innerHTML = html;
+  }else{
+    grid.innerHTML = list.map(carteHtml).join('');
+  }
 }
 
 function escapeHtml(s){
