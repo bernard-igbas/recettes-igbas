@@ -1,3 +1,16 @@
+<!--
+  VERSION : v2 - 08/09/2026
+  Cumule :
+    - v1 : première version — liste des aliments/IG, édition en direct par champ, sauvegarde
+      uniquement via téléchargement manuel du fichier JSON à redéposer sur GitHub
+    - v2 : sauvegarde automatique en ligne (Cloudflare KV, via functions/api/aliments.js),
+      remplace le téléchargement manuel qui causait des pertes de données. Remplacement de
+      l'édition "en direct" (qui recalculait toute la liste de 414 cartes à chaque frappe et
+      provoquait des plantages) par un vrai mode Modifier / Valider / Annuler, carte par carte.
+      Ajout d'un index alphabétique A→Z sur le côté droit pour naviguer rapidement.
+  Fichiers precedents : v1 (06/09/2026)
+-->
+<meta name="app-version" content="v2-2026-09-08">
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -23,6 +36,7 @@
     color:var(--texte);
     margin:0;
     padding:24px;
+    padding-right:56px;
     font-size:20px;
     line-height:1.6;
   }
@@ -94,6 +108,12 @@
     flex-wrap:wrap;
     align-items:center;
     gap:14px;
+    scroll-margin-top:16px;
+  }
+  .carte-aliment.en-edition{
+    border-color:var(--vert);
+    border-width:2px;
+    background:#fbfdf9;
   }
   .nom-aliment{
     flex:1;
@@ -122,7 +142,11 @@
   .actions-carte{
     display:flex;
     gap:8px;
+    flex-wrap:wrap;
   }
+  .btn-valider{background:var(--vert); color:white;}
+  .btn-valider:hover{background:var(--vert-fonce);}
+  .btn-annuler{background:white; border:2px solid var(--bord); color:var(--gris);}
   .alerte{
     background:#fff3d6;
     border:2px solid var(--orange);
@@ -156,6 +180,7 @@
     font-size:18px;
     display:none;
     box-shadow:0 4px 12px rgba(0,0,0,0.2);
+    z-index:200;
   }
   .pied-page{
     margin-top:30px;
@@ -164,10 +189,45 @@
     color:var(--gris);
     font-size:17px;
   }
+
+  /* Index alphabétique, fixé sur le bord droit */
+  #index-alpha{
+    position:fixed;
+    right:4px;
+    top:50%;
+    transform:translateY(-50%);
+    display:flex;
+    flex-direction:column;
+    gap:1px;
+    z-index:100;
+    background:rgba(255,255,255,0.9);
+    border-radius:10px;
+    padding:6px 3px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08);
+  }
+  .lettre-index{
+    font-size:13px;
+    font-weight:700;
+    text-align:center;
+    width:22px;
+    padding:1px 0;
+    color:var(--vert-fonce);
+    cursor:pointer;
+    border-radius:4px;
+    background:none;
+  }
+  .lettre-index.inactive{
+    color:#ccc;
+    cursor:default;
+  }
+  .lettre-index:not(.inactive):hover{background:var(--vert); color:white;}
+
   @media (max-width:480px){
-    body{padding:14px; font-size:19px;}
+    body{padding:14px; padding-right:34px; font-size:19px;}
     .carte-aliment{flex-direction:column; align-items:stretch;}
     .actions-carte{justify-content:flex-end;}
+    #index-alpha{right:2px; padding:4px 2px;}
+    .lettre-index{font-size:11px; width:16px;}
   }
 </style>
 </head>
@@ -177,7 +237,7 @@
 <p class="sous-titre">Liste partagée — Bernard &amp; Marie-Laure</p>
 
 <div class="alerte" id="alerte-anomalie" style="display:none;">
-  ⚠️ Un aliment a un nom incomplet (probablement coupé lors d'un ancien copier-coller). Corrige-le directement ci-dessous, ou clique sur « Ignorer » pour ne plus voir ce message.
+  ⚠️ Un aliment a un nom incomplet (probablement coupé lors d'un ancien copier-coller). Corrige-le via "Modifier", ou clique sur « Ignorer » pour ne plus voir ce message.
   <div style="margin-top:10px;">
     <button class="btn-secondaire" onclick="document.getElementById('alerte-anomalie').style.display='none'">Ignorer</button>
   </div>
@@ -191,7 +251,7 @@
 
 <div class="barre-haute">
   <input type="text" id="recherche" placeholder="🔍 Rechercher un aliment…" oninput="filtrerEtAfficher()">
-  <button class="btn-secondaire" onclick="exporterJSON()">⬇ Télécharger aliments.json</button>
+  <button class="btn-secondaire" onclick="exporterJSON()">⬇ Export de secours</button>
 </div>
 
 <div id="compteur"></div>
@@ -200,21 +260,23 @@
 </div>
 
 <div class="pied-page">
-  Après tes modifications, télécharge le fichier <strong>aliments.json</strong> mis à jour et remplace-le dans le dépôt GitHub <em>bernard-igbas/recettes-igbas</em> (via l'éditeur web GitHub, comme d'habitude). Les changements seront alors visibles partout où la liste est utilisée.
+  Tes modifications sont enregistrées automatiquement dès que tu cliques sur « Valider » — aucune manipulation supplémentaire n'est nécessaire. Elles sont visibles instantanément par toi et Marie-Laure, sur tout appareil.
 </div>
 
+<div id="index-alpha"></div>
 <div id="message-etat"></div>
 
 <script>
 let aliments = [];
+let carteEnEdition = null; // index (dans le tableau "aliments") de la carte actuellement en modification, ou null
 
-// Adresse absolue du fichier, pour éviter tout souci de résolution de chemin relatif
-// selon l'URL exacte affichée (avec ou sans .html, avec ou sans / final).
-const URL_ALIMENTS = new URL('aliments.json', window.location.href).href;
+// Même code que celui utilisé par l'appli recettes-igbas (functions/api/data.js),
+// pour que les deux outils partagent la même clé d'accès en écriture.
+const RECETTES_CODE = "RECETTES_CODE_2026_09_05_05:17";
 
-fetch(URL_ALIMENTS, {cache: 'no-store'})
+fetch('/api/aliments', {cache: 'no-store'})
   .then(r => {
-    if(!r.ok) throw new Error('Réponse HTTP ' + r.status + ' pour ' + URL_ALIMENTS);
+    if(!r.ok) throw new Error('Réponse HTTP ' + r.status);
     return r.text();
   })
   .then(texte => {
@@ -222,7 +284,7 @@ fetch(URL_ALIMENTS, {cache: 'no-store'})
     try{
       data = JSON.parse(texte);
     }catch(e){
-      throw new Error('Le fichier récupéré n\'est pas un JSON valide (peut-être une page d\'erreur renvoyée à la place). Adresse essayée : ' + URL_ALIMENTS);
+      throw new Error('Réponse reçue non reconnue comme JSON.');
     }
     if(!Array.isArray(data)) throw new Error('Format inattendu : ce n\'est pas une liste.');
 
@@ -235,10 +297,32 @@ fetch(URL_ALIMENTS, {cache: 'no-store'})
   })
   .catch(err => {
     document.getElementById('liste-aliments').innerHTML =
-      '<div class="alerte">Impossible de charger la liste des aliments.<br><br>' +
+      '<div class="alerte">Impossible de charger la liste des aliments depuis le serveur.<br><br>' +
       '<strong>Détail technique :</strong> ' + escapeHtml(err.message) + '</div>';
     document.getElementById('compteur').textContent = '';
   });
+
+let sauvegardeEnCours = false;
+let sauvegardeEnAttente = false;
+
+async function sauvegarder(){
+  if(sauvegardeEnCours){ sauvegardeEnAttente = true; return; }
+  sauvegardeEnCours = true;
+  try{
+    const reponse = await fetch('/api/aliments', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-Recettes-Code': RECETTES_CODE},
+      body: JSON.stringify(aliments)
+    });
+    if(!reponse.ok) throw new Error('HTTP ' + reponse.status);
+    afficherMessage('✓ Enregistré');
+  }catch(e){
+    afficherMessage('⚠ Échec de la sauvegarde en ligne — vérifie ta connexion et réessaie.');
+  }finally{
+    sauvegardeEnCours = false;
+    if(sauvegardeEnAttente){ sauvegardeEnAttente = false; sauvegarder(); }
+  }
+}
 
 function verifierAnomalies(){
   const suspect = aliments.find(a => a.nom.trim().length < 3 || a.nom.trim().startsWith(')') || /^[^A-Za-zÀ-ÿ]/.test(a.nom.trim()));
@@ -254,6 +338,12 @@ function classeIG(ig){
   return 'ig-tres-eleve';
 }
 
+function normaliserLettre(nom){
+  const c = nom.trim().charAt(0).toUpperCase();
+  const table = {'À':'A','Â':'A','Ä':'A','É':'E','È':'E','Ê':'E','Ë':'E','Î':'I','Ï':'I','Ô':'O','Ö':'O','Ù':'U','Û':'U','Ü':'U','Ç':'C'};
+  return table[c] || c;
+}
+
 function filtrerEtAfficher(){
   const terme = document.getElementById('recherche').value.trim().toLowerCase();
   const filtres = aliments
@@ -267,21 +357,58 @@ function filtrerEtAfficher(){
   const conteneur = document.getElementById('liste-aliments');
   conteneur.innerHTML = '';
 
+  const lettresVues = new Set();
+  const lettresPresentes = new Set();
+
   filtres.forEach(a => {
+    const lettre = normaliserLettre(a.nom);
+    lettresPresentes.add(lettre);
+    const premiereDeLaLettre = !lettresVues.has(lettre);
+    lettresVues.add(lettre);
+
     const carte = document.createElement('div');
-    carte.className = 'carte-aliment';
-    carte.innerHTML = `
-      <div class="nom-aliment">
-        <input type="text" value="${escapeHtml(a.nom)}" onchange="renommerAliment(${a.index}, this.value)">
-      </div>
-      <span class="badge-ig ${classeIG(a.ig)}">IG ${a.ig}</span>
-      <input type="number" class="champ-ig" value="${a.ig}" min="0" max="110" onchange="modifierIG(${a.index}, this.value)">
-      <div class="actions-carte">
-        <button class="btn-danger" onclick="supprimerAliment(${a.index})">Supprimer</button>
-      </div>
-    `;
+    carte.className = 'carte-aliment' + (carteEnEdition === a.index ? ' en-edition' : '');
+    if(premiereDeLaLettre){ carte.id = 'lettre-' + lettre; }
+
+    if(carteEnEdition === a.index){
+      carte.innerHTML = `
+        <div class="nom-aliment">
+          <input type="text" id="edit-nom-${a.index}" value="${escapeHtml(a.nom)}">
+        </div>
+        <input type="number" class="champ-ig" id="edit-ig-${a.index}" value="${a.ig}" min="0" max="110">
+        <div class="actions-carte">
+          <button class="btn-valider" onclick="validerModif(${a.index})">✓ Valider</button>
+          <button class="btn-annuler" onclick="annulerModif()">Annuler</button>
+        </div>
+      `;
+    }else{
+      carte.innerHTML = `
+        <div class="nom-aliment">${escapeHtml(a.nom)}</div>
+        <span class="badge-ig ${classeIG(a.ig)}">IG ${a.ig}</span>
+        <div class="actions-carte">
+          <button class="btn-secondaire" onclick="commencerModif(${a.index})">Modifier</button>
+          <button class="btn-danger" onclick="supprimerAliment(${a.index})">Supprimer</button>
+        </div>
+      `;
+    }
     conteneur.appendChild(carte);
   });
+
+  construireIndexAlpha(lettresPresentes);
+}
+
+function construireIndexAlpha(lettresPresentes){
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const zone = document.getElementById('index-alpha');
+  zone.innerHTML = alphabet.map(l => {
+    const actif = lettresPresentes.has(l);
+    return `<div class="lettre-index${actif ? '' : ' inactive'}" ${actif ? `onclick="allerALaLettre('${l}')"` : ''}>${l}</div>`;
+  }).join('');
+}
+
+function allerALaLettre(lettre){
+  const cible = document.getElementById('lettre-' + lettre);
+  if(cible){ cible.scrollIntoView({behavior:'smooth', block:'start'}); }
 }
 
 function escapeHtml(texte){
@@ -290,27 +417,40 @@ function escapeHtml(texte){
   return div.innerHTML;
 }
 
-function renommerAliment(index, nouveauNom){
-  nouveauNom = nouveauNom.trim();
-  if(!nouveauNom){ afficherMessage('Le nom ne peut pas être vide.'); filtrerEtAfficher(); return; }
-  aliments[index].nom = nouveauNom;
-  afficherMessage('Aliment renommé.');
+function commencerModif(index){
+  carteEnEdition = index;
+  filtrerEtAfficher();
+  const champNom = document.getElementById('edit-nom-' + index);
+  if(champNom){ champNom.focus(); champNom.select(); }
+}
+
+function annulerModif(){
+  carteEnEdition = null;
   filtrerEtAfficher();
 }
 
-function modifierIG(index, nouvelIG){
-  const val = parseInt(nouvelIG, 10);
-  if(isNaN(val) || val < 0 || val > 110){ afficherMessage('IG invalide (doit être entre 0 et 110).'); filtrerEtAfficher(); return; }
-  aliments[index].ig = val;
-  afficherMessage('Indice glycémique mis à jour.');
+function validerModif(index){
+  const nomChamp = document.getElementById('edit-nom-' + index);
+  const igChamp = document.getElementById('edit-ig-' + index);
+  const nouveauNom = nomChamp.value.trim();
+  const nouvelIG = parseInt(igChamp.value, 10);
+
+  if(!nouveauNom){ afficherMessage('Le nom ne peut pas être vide.'); return; }
+  if(isNaN(nouvelIG) || nouvelIG < 0 || nouvelIG > 110){ afficherMessage('IG invalide (doit être entre 0 et 110).'); return; }
+
+  aliments[index].nom = nouveauNom;
+  aliments[index].ig = nouvelIG;
+  carteEnEdition = null;
   filtrerEtAfficher();
+  sauvegarder();
 }
 
 function supprimerAliment(index){
-  if(!confirm('Supprimer "' + aliments[index].nom + '" ? Cette action est irréversible dans ce fichier de travail.')) return;
+  if(!confirm('Supprimer "' + aliments[index].nom + '" ? Cette action est irréversible.')) return;
   aliments.splice(index, 1);
-  afficherMessage('Aliment supprimé.');
+  carteEnEdition = null;
   filtrerEtAfficher();
+  sauvegarder();
 }
 
 function ajouterAliment(){
@@ -329,8 +469,8 @@ function ajouterAliment(){
   aliments.push({nom: nom, ig: ig});
   nomChamp.value = '';
   igChamp.value = '';
-  afficherMessage('Aliment ajouté.');
   filtrerEtAfficher();
+  sauvegarder();
 }
 
 function exporterJSON(){
@@ -339,10 +479,10 @@ function exporterJSON(){
   const url = URL.createObjectURL(blob);
   const lien = document.createElement('a');
   lien.href = url;
-  lien.download = 'aliments.json';
+  lien.download = 'aliments-secours-' + new Date().toISOString().slice(0,10) + '.json';
   lien.click();
   URL.revokeObjectURL(url);
-  afficherMessage('Fichier téléchargé — pense à le déposer sur GitHub.');
+  afficherMessage('Copie de secours téléchargée.');
 }
 
 function afficherMessage(texte){
