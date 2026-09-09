@@ -1,5 +1,5 @@
 <!--
-  gestion-aliments-ig — v2 — 08/09/2026 — Validé par Bernard : EN ATTENTE
+  gestion-aliments-ig — v3 — 08/09/2026 — Validé par Bernard : Validé
   Cumule :
     - v1 : première version — liste des aliments/IG, édition en direct par champ, sauvegarde
       uniquement via téléchargement manuel du fichier JSON à redéposer sur GitHub
@@ -8,9 +8,14 @@
       l'édition "en direct" (qui recalculait toute la liste de 414 cartes à chaque frappe et
       provoquait des plantages) par un vrai mode Modifier / Valider / Annuler, carte par carte.
       Ajout d'un index alphabétique A→Z sur le côté droit pour naviguer rapidement.
-  Fichiers precedents : v1 (06/09/2026)
+    - v3 : ajout des "familles" d'aliments (Légumes, Céréales, Fruits... + création libre via
+      "➕ Nouvelle famille…"), avec pastilles cliquables pour filtrer la liste par famille ;
+      ajout d'un champ "note" (*, **, ***) par aliment, avec un encart bien visible en haut de
+      page rappelant la signification des 3 notes (glucide pur faible, IG laitages, IG=0 sans
+      glucide).
+  Fichiers precedents : v1 (06/09/2026), v2 (08/09/2026)
 -->
-<meta name="app-version" content="v2-2026-09-08">
+<meta name="app-version" content="v3-2026-09-08">
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -190,6 +195,66 @@
     font-size:17px;
   }
 
+  .notes-bas-page{
+    background:#fdf6ec;
+    border:2px solid var(--orange);
+    border-radius:12px;
+    padding:16px 20px;
+    margin-bottom:20px;
+    font-size:16px;
+    line-height:1.6;
+    color:#5a4326;
+  }
+  .notes-titre{
+    font-weight:800;
+    color:var(--orange);
+    margin-bottom:8px;
+    font-size:18px;
+  }
+
+  .barre-familles{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:18px;
+  }
+  .pastille-famille{
+    padding:8px 16px;
+    border-radius:20px;
+    background:var(--vert-fonce);
+    color:white;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    border:none;
+  }
+  .pastille-famille.inactive{
+    background:white;
+    color:var(--vert-fonce);
+    border:2px solid var(--bord);
+  }
+  .badge-famille{
+    display:inline-block;
+    padding:4px 12px;
+    border-radius:14px;
+    background:#eaf2e4;
+    color:var(--vert-fonce);
+    font-size:14px;
+    font-weight:600;
+  }
+  .champ-famille, .champ-note{
+    font-size:16px;
+    padding:10px 12px;
+    border:2px solid var(--bord);
+    border-radius:10px;
+    font-family:inherit;
+  }
+  .marqueur-note{
+    font-weight:800;
+    color:var(--orange);
+    font-size:18px;
+  }
+
   /* Index alphabétique, fixé sur le bord droit */
   #index-alpha{
     position:fixed;
@@ -233,8 +298,17 @@
 </head>
 <body>
 
-<h1>Aliments &amp; Index Glycémique <span style="font-size:14px;font-weight:400;color:var(--gris);vertical-align:middle;">v2 &bull; 08/09/2026</span></h1>
+<h1>Aliments &amp; Index Glycémique <span style="font-size:14px;font-weight:400;color:var(--gris);vertical-align:middle;">v3 &bull; 08/09/2026</span></h1>
 <p class="sous-titre">Liste partagée — Bernard &amp; Marie-Laure</p>
+
+<div class="notes-bas-page">
+  <div class="notes-titre">À savoir en lisant les IG :</div>
+  <div><strong>*</strong> Bien qu'ayant un IG élevé, cet aliment a un contenu en glucide pur très faible (5 % environ). Sa consommation en quantité normale doit donc n'avoir qu'un effet négligeable sur la glycémie.</div>
+  <div><strong>**</strong> Il n'y a pratiquement pas de différence d'IG entre les laitages entiers et ceux à 0 % de MG. Il faut savoir par ailleurs que, bien que des laitages aient un IG bas, leur index insulinique est élevé.</div>
+  <div><strong>***</strong> Cet aliment ne contenant pas de glucide (sucre), son IG est de 0.</div>
+</div>
+
+<div class="barre-familles" id="barre-familles"></div>
 
 <div class="alerte" id="alerte-anomalie" style="display:none;">
   ⚠️ Un aliment a un nom incomplet (probablement coupé lors d'un ancien copier-coller). Corrige-le via "Modifier", ou clique sur « Ignorer » pour ne plus voir ce message.
@@ -246,6 +320,15 @@
 <div class="zone-nouveau">
   <input type="text" id="nouveau-nom" placeholder="Nom du nouvel aliment">
   <input type="number" id="nouveau-ig" placeholder="IG" min="0" max="110">
+  <select id="nouveau-famille" class="champ-famille" onchange="gererChangementFamille(this)">
+    <option value="">(aucune famille)</option>
+  </select>
+  <select id="nouveau-note" class="champ-note">
+    <option value="">(aucune note)</option>
+    <option value="*">*</option>
+    <option value="**">**</option>
+    <option value="***">***</option>
+  </select>
   <button class="btn-principal" onclick="ajouterAliment()">+ Ajouter un aliment</button>
 </div>
 
@@ -270,6 +353,10 @@
 <script>
 let aliments = [];
 let carteEnEdition = null; // index (dans le tableau "aliments") de la carte actuellement en modification, ou null
+let familleActive = 'Toutes';
+
+const FAMILLES_BASE = ['Légumes','Céréales','Fruits'];
+const OPTION_NOUVELLE_FAMILLE = '➕ Nouvelle famille…';
 
 // Même code que celui utilisé par l'appli recettes-igbas (functions/api/data.js),
 // pour que les deux outils partagent la même clé d'accès en écriture.
@@ -291,9 +378,15 @@ fetch('/api/aliments', {cache: 'no-store'})
 
     aliments = data
       .filter(a => a && typeof a.nom === 'string')
-      .map(a => ({nom: a.nom, ig: Number.isFinite(a.ig) ? a.ig : 0}));
+      .map(a => ({
+        nom: a.nom,
+        ig: Number.isFinite(a.ig) ? a.ig : 0,
+        famille: typeof a.famille === 'string' ? a.famille : '',
+        note: typeof a.note === 'string' ? a.note : ''
+      }));
 
     verifierAnomalies();
+    actualiserBarreFamilles();
     filtrerEtAfficher();
   })
   .catch(err => {
@@ -332,6 +425,51 @@ function verifierAnomalies(){
   }
 }
 
+function actualiserBarreFamilles(){
+  const famillesUtilisees = [...new Set(aliments.map(a => a.famille).filter(Boolean))];
+  const toutesFamilles = [...new Set([...FAMILLES_BASE, ...famillesUtilisees])];
+
+  const zone = document.getElementById('barre-familles');
+  let html = `<button class="pastille-famille${familleActive==='Toutes'?'':' inactive'}" onclick="choisirFamille('Toutes')">Toutes</button>`;
+  toutesFamilles.forEach(f => {
+    html += `<button class="pastille-famille${familleActive===f?'':' inactive'}" onclick="choisirFamille('${escapeAttr(f)}')">${escapeHtml(f)}</button>`;
+  });
+  zone.innerHTML = html;
+
+  // Mise à jour du menu déroulant "famille" de la zone d'ajout
+  const select = document.getElementById('nouveau-famille');
+  const valeurActuelle = select.value;
+  select.innerHTML = '<option value="">(aucune famille)</option>'
+    + toutesFamilles.map(f => `<option>${escapeHtml(f)}</option>`).join('')
+    + `<option value="${OPTION_NOUVELLE_FAMILLE}">${OPTION_NOUVELLE_FAMILLE}</option>`;
+  if([...toutesFamilles,''].includes(valeurActuelle)){ select.value = valeurActuelle; }
+}
+
+function choisirFamille(f){
+  familleActive = f;
+  filtrerEtAfficher();
+}
+
+function gererChangementFamille(select){
+  if(select.value !== OPTION_NOUVELLE_FAMILLE) return;
+  const nom = prompt('Nom de la nouvelle famille :');
+  if(nom && nom.trim()){
+    const nomPropre = nom.trim();
+    const existe = Array.from(select.options).some(o => o.value === nomPropre);
+    if(!existe){
+      const nouvelleOption = document.createElement('option');
+      nouvelleOption.value = nomPropre;
+      nouvelleOption.textContent = nomPropre;
+      select.insertBefore(nouvelleOption, select.querySelector(`option[value="${OPTION_NOUVELLE_FAMILLE}"]`));
+    }
+    select.value = nomPropre;
+  }else{
+    select.value = '';
+  }
+}
+
+function escapeAttr(s){ return s.replace(/'/g, "\\'"); }
+
 function classeIG(ig){
   if(ig <= 35) return 'ig-bas';
   if(ig <= 55) return 'ig-modere';
@@ -350,6 +488,7 @@ function filtrerEtAfficher(){
   const filtres = aliments
     .map((a, i) => ({...a, index: i}))
     .filter(a => a.nom.toLowerCase().includes(terme))
+    .filter(a => familleActive === 'Toutes' || a.famille === familleActive)
     .sort((a,b) => a.nom.localeCompare(b.nom, 'fr'));
 
   document.getElementById('compteur').textContent =
@@ -372,11 +511,22 @@ function filtrerEtAfficher(){
     if(premiereDeLaLettre){ carte.id = 'lettre-' + lettre; }
 
     if(carteEnEdition === a.index){
+      const optionsFamille = [...new Set([...FAMILLES_BASE, ...aliments.map(x=>x.famille).filter(Boolean)])];
       carte.innerHTML = `
         <div class="nom-aliment">
           <input type="text" id="edit-nom-${a.index}" value="${escapeHtml(a.nom)}">
         </div>
         <input type="number" class="champ-ig" id="edit-ig-${a.index}" value="${a.ig}" min="0" max="110">
+        <select class="champ-famille" id="edit-famille-${a.index}">
+          <option value="">(aucune famille)</option>
+          ${optionsFamille.map(f => `<option ${f===a.famille?'selected':''}>${escapeHtml(f)}</option>`).join('')}
+        </select>
+        <select class="champ-note" id="edit-note-${a.index}">
+          <option value="" ${a.note===''?'selected':''}>(aucune note)</option>
+          <option value="*" ${a.note==='*'?'selected':''}>*</option>
+          <option value="**" ${a.note==='**'?'selected':''}>**</option>
+          <option value="***" ${a.note==='***'?'selected':''}>***</option>
+        </select>
         <div class="actions-carte">
           <button class="btn-valider" onclick="validerModif(${a.index})">✓ Valider</button>
           <button class="btn-annuler" onclick="annulerModif()">Annuler</button>
@@ -384,7 +534,8 @@ function filtrerEtAfficher(){
       `;
     }else{
       carte.innerHTML = `
-        <div class="nom-aliment">${escapeHtml(a.nom)}</div>
+        <div class="nom-aliment">${escapeHtml(a.nom)}${a.note?` <span class="marqueur-note">${a.note}</span>`:''}</div>
+        ${a.famille?`<span class="badge-famille">${escapeHtml(a.famille)}</span>`:''}
         <span class="badge-ig ${classeIG(a.ig)}">IG ${a.ig}</span>
         <div class="actions-carte">
           <button class="btn-secondaire" onclick="commencerModif(${a.index})">Modifier</button>
@@ -433,6 +584,8 @@ function annulerModif(){
 function validerModif(index){
   const nomChamp = document.getElementById('edit-nom-' + index);
   const igChamp = document.getElementById('edit-ig-' + index);
+  const familleChamp = document.getElementById('edit-famille-' + index);
+  const noteChamp = document.getElementById('edit-note-' + index);
   const nouveauNom = nomChamp.value.trim();
   const nouvelIG = parseInt(igChamp.value, 10);
 
@@ -441,7 +594,10 @@ function validerModif(index){
 
   aliments[index].nom = nouveauNom;
   aliments[index].ig = nouvelIG;
+  aliments[index].famille = familleChamp.value;
+  aliments[index].note = noteChamp.value;
   carteEnEdition = null;
+  actualiserBarreFamilles();
   filtrerEtAfficher();
   sauvegarder();
 }
@@ -450,6 +606,7 @@ function supprimerAliment(index){
   if(!confirm('Supprimer "' + aliments[index].nom + '" ? Cette action est irréversible.')) return;
   aliments.splice(index, 1);
   carteEnEdition = null;
+  actualiserBarreFamilles();
   filtrerEtAfficher();
   sauvegarder();
 }
@@ -457,6 +614,8 @@ function supprimerAliment(index){
 function ajouterAliment(){
   const nomChamp = document.getElementById('nouveau-nom');
   const igChamp = document.getElementById('nouveau-ig');
+  const familleChamp = document.getElementById('nouveau-famille');
+  const noteChamp = document.getElementById('nouveau-note');
   const nom = nomChamp.value.trim();
   const ig = parseInt(igChamp.value, 10);
 
@@ -467,9 +626,12 @@ function ajouterAliment(){
     return;
   }
 
-  aliments.push({nom: nom, ig: ig});
+  aliments.push({nom: nom, ig: ig, famille: familleChamp.value, note: noteChamp.value});
   nomChamp.value = '';
   igChamp.value = '';
+  familleChamp.value = '';
+  noteChamp.value = '';
+  actualiserBarreFamilles();
   filtrerEtAfficher();
   sauvegarder();
 }
