@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v12 — 08/09/2026 — Validé par Bernard : ok
+  recettes-igbas — v13 — 09/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -16,9 +16,10 @@
     - v10 : le catalogue s'affiche maintenant par ordre alphabétique des titres (au lieu de "plus récent d'abord"), plus intuitif pour les clientes ; correctif d'affichage des photos de recette — l'ancien cadrage (220px, recadrage serré) coupait une grande partie des photos en hauteur, remplacé par un cadrage qui garde toujours la photo entière visible (contain, jusqu'à 360px)
     - v11 : cadre photo homogène (proportions fixes 4/3, fond doux, bordure) quelle que soit l'orientation de la photo, sans jamais recadrer/couper le sujet ; le numéro de fiche n'est plus affiché à l'écran (restait perturbant en tri alphabétique — il reste utilisé en interne) ; chaque titre de sous-catégorie affiche maintenant son nombre de fiches, ex. "→ Entrée chaude (20)"
     - v12 : remplacement de l'affichage groupé (toutes les sous-catégories listées à la suite, devenu interminable avec 70 recettes) par des onglets cliquables — seule la sous-catégorie choisie s'affiche à la fois, avec son nombre de fiches entre parenthèses
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026).
+    - v13 : correctif export PDF — le cadre photo grandissait avec la largeur de la page à l'impression (ratio 4/3), poussant la fiche sur une 2ème page ; il a maintenant une hauteur fixe (5 cm) uniquement à l'impression, indépendante de la largeur, plus quelques marges resserrées pour aider à tenir sur une seule page
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026).
 -->
-<meta name="app-version" content="v12-2026-09-08">
+<meta name="app-version" content="v13-2026-09-09">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -208,6 +209,24 @@
     #printzone,#printzone *{visibility:visible;}
     #printzone{position:absolute;left:0;top:0;width:100%;}
     .cta-bar,.detail-back{display:none!important;}
+    /* Hauteur fixe (indépendante de la largeur de page) pour que la photo
+       ne pousse jamais la fiche sur une 2ème page à l'impression. */
+    .hero-photo-cadre{
+      aspect-ratio:auto;
+      height:5cm;
+      max-height:5cm;
+      margin-top:8px;
+      page-break-inside:avoid;
+      break-inside:avoid;
+    }
+    .hero{padding:14px 20px 12px;}
+    .body-pad{padding:14px 20px 16px;}
+    .meta-row{margin-bottom:14px;}
+    .ig-global{margin-bottom:14px;padding:8px 12px;}
+    .ingredients{margin-bottom:16px;}
+    .ingredients li{padding:5px 0;}
+    .steps{margin-bottom:12px;}
+    .steps li{margin-bottom:8px;}
   }
 </style>
 </head>
@@ -215,7 +234,7 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v12 &bull; 08/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v13 &bull; 09/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
