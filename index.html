@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v13 — 09/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v14 — 11/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -17,9 +17,10 @@
     - v11 : cadre photo homogène (proportions fixes 4/3, fond doux, bordure) quelle que soit l'orientation de la photo, sans jamais recadrer/couper le sujet ; le numéro de fiche n'est plus affiché à l'écran (restait perturbant en tri alphabétique — il reste utilisé en interne) ; chaque titre de sous-catégorie affiche maintenant son nombre de fiches, ex. "→ Entrée chaude (20)"
     - v12 : remplacement de l'affichage groupé (toutes les sous-catégories listées à la suite, devenu interminable avec 70 recettes) par des onglets cliquables — seule la sous-catégorie choisie s'affiche à la fois, avec son nombre de fiches entre parenthèses
     - v13 : correctif export PDF — le cadre photo grandissait avec la largeur de la page à l'impression (ratio 4/3), poussant la fiche sur une 2ème page ; il a maintenant une hauteur fixe (5 cm) uniquement à l'impression, indépendante de la largeur, plus quelques marges resserrées pour aider à tenir sur une seule page
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026).
+    - v14 : sur la fiche client, la photo passe à droite du titre (au lieu d'être en pleine largeur au-dessus) quand la place le permet, comme sur l'ancien modèle FileMaker ; repasse automatiquement sous le texte si l'écran est étroit ou le titre long ; tailles de texte revues pour tenir en une page à l'impression et rester lisibles (sous-titres Ingrédients/Étapes 10pt, bloc infos pratiques 12pt, corps du texte 14pt, fil d'ariane/mentions légales 8pt)
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026).
 -->
-<meta name="app-version" content="v13-2026-09-09">
+<meta name="app-version" content="v14-2026-09-11">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -164,15 +165,19 @@
   .detail-back{background:none;border:none;color:var(--herb-dark);font-family:inherit;font-weight:600;font-size:16px;cursor:pointer;margin-bottom:14px;padding:0;}
   .phone{background:var(--paper);border-radius:24px;overflow:hidden;box-shadow:0 1px 3px rgba(34,48,29,.08),0 20px 40px rgba(34,48,29,.10);border:1px solid var(--line);}
   .hero{background:linear-gradient(160deg,var(--herb) 0%,var(--herb-dark) 100%);color:#fff;padding:30px 26px 26px;}
-  .hero-tag{display:inline-block;background:rgba(255,255,255,.15);font-size:13px;font-weight:600;padding:4px 11px;border-radius:999px;margin-bottom:12px;}
+  .hero-top{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+  .hero-text{flex:1 1 200px;min-width:0;}
+  .hero-tag{display:inline-block;background:rgba(255,255,255,.15);font-size:11px;font-weight:600;padding:4px 11px;border-radius:999px;margin-bottom:12px;}
   .hero h2{font-size:26px;font-weight:800;margin:0 0 8px;line-height:1.2;}
+  /* Photo à droite du titre quand la place le permet ; passe automatiquement
+     sous le texte sur petit écran ou si le titre est trop long (flex-wrap). */
   .hero-photo-cadre{
-    width:100%;
+    width:150px;
+    flex:0 0 150px;
     aspect-ratio:4/3;
     background:linear-gradient(135deg,#eef1ea,#e4e9dc);
     border:1px solid var(--line);
     border-radius:16px;
-    margin-top:14px;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -187,20 +192,20 @@
   }
   .body-pad{padding:24px 26px 26px;}
   .meta-row{display:flex;gap:20px;margin-bottom:22px;flex-wrap:wrap;}
-  .meta-item{font-size:15px;color:var(--muted);}
-  .meta-item b{display:block;font-size:18px;color:var(--ink);font-weight:700;}
+  .meta-item{font-size:16px;color:var(--muted);}
+  .meta-item b{display:block;font-size:16px;color:var(--ink);font-weight:700;}
   .ig-global{display:flex;align-items:center;gap:10px;margin-bottom:22px;padding:12px 14px;border-radius:12px;background:var(--bg);}
-  .ig-global b{font-size:15px;}
-  .section-title{font-size:19px;font-weight:700;color:var(--herb-dark);margin:0 0 12px;}
+  .ig-global b{font-size:16px;}
+  .section-title{font-size:13px;font-weight:700;color:var(--herb-dark);margin:0 0 12px;}
   .ingredients{list-style:none;padding:0;margin:0 0 26px;}
-  .ingredients li{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:17px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .ingredients li{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:19px;padding:9px 0;border-bottom:1px solid var(--line);}
   .ingredients li:last-child{border-bottom:none;}
   .ing-left{display:flex;align-items:center;gap:10px;}
   .dot{width:8px;height:8px;border-radius:50%;background:var(--ochre);flex:0 0 auto;}
   .steps{padding:0;margin:0 0 20px;list-style:none;}
-  .steps li{display:flex;gap:12px;margin-bottom:16px;font-size:17px;line-height:1.6;}
-  .remarque{font-size:15px;color:var(--muted);font-style:italic;line-height:1.6;margin-bottom:20px;}
-  .disclaimer{font-size:12px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line);padding-top:14px;}
+  .steps li{display:flex;gap:12px;margin-bottom:16px;font-size:19px;line-height:1.6;}
+  .remarque{font-size:16px;color:var(--muted);font-style:italic;line-height:1.6;margin-bottom:20px;}
+  .disclaimer{font-size:11px;color:var(--muted);line-height:1.6;border-top:1px solid var(--line);padding-top:14px;}
   .cta-bar{padding:18px 26px 26px;border-top:1px solid var(--line);}
   .download-btn{width:100%;background:var(--herb);color:#fff;border:none;border-radius:14px;padding:17px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
 
@@ -209,13 +214,14 @@
     #printzone,#printzone *{visibility:visible;}
     #printzone{position:absolute;left:0;top:0;width:100%;}
     .cta-bar,.detail-back{display:none!important;}
-    /* Hauteur fixe (indépendante de la largeur de page) pour que la photo
+    /* Taille fixe (indépendante de la largeur de page) pour que la photo
        ne pousse jamais la fiche sur une 2ème page à l'impression. */
     .hero-photo-cadre{
       aspect-ratio:auto;
-      height:5cm;
-      max-height:5cm;
-      margin-top:8px;
+      width:4.5cm;
+      flex:0 0 4.5cm;
+      height:3.5cm;
+      max-height:3.5cm;
       page-break-inside:avoid;
       break-inside:avoid;
     }
@@ -234,7 +240,7 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v13 &bull; 09/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v14 &bull; 11/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -723,9 +729,13 @@ function openDetail(id){
   const html = `
     <div id="printzone">
       <div class="hero">
-        <span class="hero-tag">${escapeHtml(r.categorie)}${r.sousCategorie? ' · '+escapeHtml(r.sousCategorie):''}</span>
-        <h2>${escapeHtml(r.titre)}</h2>
-        ${r.photo? `<div class="hero-photo-cadre"><img class="hero-photo" src="${r.photo}"></div>` : ''}
+        <div class="hero-top">
+          <div class="hero-text">
+            <span class="hero-tag">${escapeHtml(r.categorie)}${r.sousCategorie? ' · '+escapeHtml(r.sousCategorie):''}</span>
+            <h2>${escapeHtml(r.titre)}</h2>
+          </div>
+          ${r.photo? `<div class="hero-photo-cadre"><img class="hero-photo" src="${r.photo}"></div>` : ''}
+        </div>
       </div>
       <div class="body-pad">
         <div class="meta-row">
