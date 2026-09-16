@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v14 — 11/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v15 — 16/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -18,9 +18,10 @@
     - v12 : remplacement de l'affichage groupé (toutes les sous-catégories listées à la suite, devenu interminable avec 70 recettes) par des onglets cliquables — seule la sous-catégorie choisie s'affiche à la fois, avec son nombre de fiches entre parenthèses
     - v13 : correctif export PDF — le cadre photo grandissait avec la largeur de la page à l'impression (ratio 4/3), poussant la fiche sur une 2ème page ; il a maintenant une hauteur fixe (5 cm) uniquement à l'impression, indépendante de la largeur, plus quelques marges resserrées pour aider à tenir sur une seule page
     - v14 : sur la fiche client, la photo passe à droite du titre (au lieu d'être en pleine largeur au-dessus) quand la place le permet, comme sur l'ancien modèle FileMaker ; repasse automatiquement sous le texte si l'écran est étroit ou le titre long ; tailles de texte revues pour tenir en une page à l'impression et rester lisibles (sous-titres Ingrédients/Étapes 10pt, bloc infos pratiques 12pt, corps du texte 14pt, fil d'ariane/mentions légales 8pt)
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026).
+    - v15 : ajout d'un champ libre "Détail" par ingrédient (à côté du rapprochement IG), pour préciser une variante non couverte par la base d'aliments (ex. "Vinaigre" IG 5 → détail "de cidre" ou "balsamique" ; "Poulet" → détail "blanc" ou "filet") ; ordre d'affichage quantité → ingrédient → IG → détail, dans le formulaire de saisie, sur la fiche client et à l'impression ; le champ est repris automatiquement lors d'un import de lot si Claude le fournit
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026).
 -->
-<meta name="app-version" content="v14-2026-09-11">
+<meta name="app-version" content="v15-2026-09-16">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -132,10 +133,12 @@
   .ing-suggest div{padding:10px 14px;font-size:16px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;}
   .ing-suggest div:hover{background:var(--bg);}
   .ing-list{list-style:none;padding:0;margin:10px 0 0;}
-  .ing-list li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:16px;}
+  .ing-list li{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:16px;}
   .ing-list li input.qty{width:90px;padding:7px 8px;font-size:15px;border:1.5px solid var(--line);border-radius:8px;}
-  .ing-list li .name{flex:1;}
+  .ing-list li .name{flex:1 1 120px;}
+  .ing-list li input.detail{flex:1 1 150px;min-width:130px;padding:7px 8px;font-size:15px;border:1.5px solid var(--line);border-radius:8px;color:var(--muted);}
   .ing-list li button.rm{background:none;border:none;color:var(--ochre-dark);font-size:20px;cursor:pointer;line-height:1;}
+  .ing-detail{color:var(--muted);font-weight:400;}
 
   .step-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;}
   .step-num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--herb);color:#fff;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;margin-top:5px;}
@@ -240,7 +243,7 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v14 &bull; 11/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v15 &bull; 16/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -575,7 +578,7 @@ function chargerRecetteImport(i){
   // Seuls les rapprochements très fiables sont ajoutés directement à la recette.
   currentIngredients = (r.ingredients || [])
     .filter(ing => ing.nom_matche && ing.confiance >= 1.3)
-    .map(ing => ({ nom: ing.nom_matche, ig: ing.ig, qty: ing.qty || '' }));
+    .map(ing => ({ nom: ing.nom_matche, ig: ing.ig, qty: ing.qty || '', detail: ing.detail || '' }));
   renderIngList();
 
   // Tous les autres restent à valider un par un, jamais ajoutés seuls.
@@ -602,7 +605,7 @@ function renderIngATraiter(liste){
 }
 
 function validerSuggestion(btn, nom, ig){
-  currentIngredients.push({nom, ig, qty:''});
+  currentIngredients.push({nom, ig, qty:'', detail:''});
   renderIngList();
   btn.closest('.ing-a-traiter-item').remove();
 }
@@ -751,7 +754,7 @@ function openDetail(id){
         <div class="section-title">Ingrédients</div>
         <ul class="ingredients">
           ${r.ingredients.map(i=>`<li>
-            <span class="ing-left"><span class="dot"></span>${escapeHtml(i.qty||'')} ${escapeHtml(i.nom)}</span>
+            <span class="ing-left"><span class="dot"></span>${escapeHtml(i.qty||'')} ${escapeHtml(i.nom)}${i.detail? ` <span class="ing-detail">(${escapeHtml(i.detail)})</span>` : ''}</span>
             <span class="ig-pill ${igCls(i.ig)}">${i.ig}</span>
           </li>`).join('')}
         </ul>
@@ -873,13 +876,14 @@ function renderIngSuggest(){
 function escapeAttr(s){ return s.replace(/'/g,"\\'"); }
 
 function pickIngredient(nom, ig){
-  currentIngredients.push({nom, ig, qty:''});
+  currentIngredients.push({nom, ig, qty:'', detail:''});
   document.getElementById('ingSearch').value='';
   document.getElementById('ingSuggest').style.display='none';
   renderIngList();
 }
 function removeIngredient(idx){ currentIngredients.splice(idx,1); renderIngList(); }
 function updateQty(idx, val){ currentIngredients[idx].qty = val; }
+function updateDetail(idx, val){ currentIngredients[idx].detail = val; }
 
 function renderIngList(){
   const ul = document.getElementById('ingList');
@@ -887,6 +891,7 @@ function renderIngList(){
     <input class="qty" placeholder="Quantité" value="${escapeHtml(i.qty)}" oninput="updateQty(${idx}, this.value)">
     <span class="name">${escapeHtml(i.nom)}</span>
     <span class="ig-pill ${igCls(i.ig)}">${i.ig}</span>
+    <input class="detail" placeholder="Précision (ex. de cidre, blanc de...)" value="${escapeHtml(i.detail||'')}" oninput="updateDetail(${idx}, this.value)">
     <button class="rm" onclick="removeIngredient(${idx})">&times;</button>
   </li>`).join('');
 }
