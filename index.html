@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v15 — 16/09/2026 — Validé par Bernard: Ok 5:30-1609
+  recettes-igbas — v16 — 16/09/2026 — Validé par Bernard
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -19,9 +19,10 @@
     - v13 : correctif export PDF — le cadre photo grandissait avec la largeur de la page à l'impression (ratio 4/3), poussant la fiche sur une 2ème page ; il a maintenant une hauteur fixe (5 cm) uniquement à l'impression, indépendante de la largeur, plus quelques marges resserrées pour aider à tenir sur une seule page
     - v14 : sur la fiche client, la photo passe à droite du titre (au lieu d'être en pleine largeur au-dessus) quand la place le permet, comme sur l'ancien modèle FileMaker ; repasse automatiquement sous le texte si l'écran est étroit ou le titre long ; tailles de texte revues pour tenir en une page à l'impression et rester lisibles (sous-titres Ingrédients/Étapes 10pt, bloc infos pratiques 12pt, corps du texte 14pt, fil d'ariane/mentions légales 8pt)
     - v15 : ajout d'un champ libre "Détail" par ingrédient (à côté du rapprochement IG), pour préciser une variante non couverte par la base d'aliments (ex. "Vinaigre" IG 5 → détail "de cidre" ou "balsamique" ; "Poulet" → détail "blanc" ou "filet") ; ordre d'affichage quantité → ingrédient → IG → détail, dans le formulaire de saisie, sur la fiche client et à l'impression ; le champ est repris automatiquement lors d'un import de lot si Claude le fournit
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026).
+    - v16 : correctif — la recherche d'ingrédients lisait /aliments.json, une copie figée jamais régénérée depuis sa création (décalage constaté avec les aliments ajoutés depuis dans gestion-aliments-ig.html, ex. "Fromage" visible dans l'outil IG mais absent de la recherche d'ingrédients) ; lit maintenant directement /api/aliments, la même base vivante (Cloudflare KV) que gestion-aliments-ig.html, les deux pages étant servies sur le même déploiement recettes-igbas.pages.dev
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026).
 -->
-<meta name="app-version" content="v15-2026-09-16">
+<meta name="app-version" content="v16-2026-09-16">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -243,7 +244,7 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v15 &bull; 16/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v16 &bull; 16/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -383,8 +384,11 @@
 // Doit être identique à la variable RECETTES_CODE côté serveur (functions/api/data.js).
 const RECETTES_CODE = "RECETTES_CODE_2026_09_05_05:17";
 
-// Adresse publique du fichier d'aliments partagé, hébergé dans le dépôt compagnon-sante.
-const ALIMENTS_URL = "/aliments.json";
+// Adresse de la base vivante des aliments/IG, partagée avec gestion-aliments-ig.html
+// (même dépôt/déploiement recettes-igbas.pages.dev, backend Cloudflare KV via functions/api/aliments.js).
+// Remplace l'ancien fichier statique /aliments.json, qui n'était jamais régénéré après une
+// modification faite dans l'outil de gestion des aliments (décalage constaté le 16/09/2026).
+const ALIMENTS_URL = "/api/aliments";
 
 const DISCLAIMER_TXT = "Cette recette est le fruit d'une interprétation personnelle. Elle est élaborée selon mes critères, chacun(e) pourra l'adapter à son environnement social et culturel. Elle est un guide de bonnes pratiques culinaires et peut selon le cas être diversement appréciée par les uns ou les autres. Il va de votre devoir de vérifier qu'il n'y ait aucune contre-indication allergène ou médicale particulière envers les personnes susceptibles de prendre ce repas.";
 
@@ -497,7 +501,7 @@ function gererChangementSousCategorie(){
 
 async function loadAliments(){
   try{
-    const r = await fetch(ALIMENTS_URL);
+    const r = await fetch(ALIMENTS_URL, {cache:'no-store'});
     ALIMENTS = await r.json();
   }catch(e){ ALIMENTS = []; }
 }
