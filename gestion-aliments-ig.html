@@ -1,5 +1,5 @@
 <!--
-  gestion-aliments-ig — v3 — 08/09/2026 — Validé par Bernard : Validé
+  gestion-aliments-ig — v4 — 17/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — liste des aliments/IG, édition en direct par champ, sauvegarde
       uniquement via téléchargement manuel du fichier JSON à redéposer sur GitHub
@@ -13,9 +13,11 @@
       ajout d'un champ "note" (*, **, ***) par aliment, avec un encart bien visible en haut de
       page rappelant la signification des 3 notes (glucide pur faible, IG laitages, IG=0 sans
       glucide).
-  Fichiers precedents : v1 (06/09/2026), v2 (08/09/2026)
+    - v4 : la case de recherche trouve désormais aussi les aliments par leur famille (ex. taper
+      "Fruit" retrouve tous les aliments de la famille "Fruits"), en plus de la recherche par nom.
+  Fichiers precedents : v1 (06/09/2026), v2 (08/09/2026), v3 (08/09/2026)
 -->
-<meta name="app-version" content="v3-2026-09-08">
+<meta name="app-version" content="v4-2026-09-17">
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -298,7 +300,7 @@
 </head>
 <body>
 
-<h1>Aliments &amp; Index Glycémique <span style="font-size:14px;font-weight:400;color:var(--gris);vertical-align:middle;">v3 &bull; 08/09/2026</span></h1>
+<h1>Aliments &amp; Index Glycémique <span style="font-size:14px;font-weight:400;color:var(--gris);vertical-align:middle;">v4 &bull; 17/09/2026</span></h1>
 <p class="sous-titre">Liste partagée — Bernard &amp; Marie-Laure</p>
 
 <div class="notes-bas-page">
@@ -333,7 +335,7 @@
 </div>
 
 <div class="barre-haute">
-  <input type="text" id="recherche" placeholder="🔍 Rechercher un aliment…" oninput="filtrerEtAfficher()">
+  <input type="text" id="recherche" placeholder="🔍 Rechercher un aliment ou une famille…" oninput="filtrerEtAfficher()">
   <button class="btn-secondaire" onclick="exporterJSON()">⬇ Export de secours</button>
 </div>
 
@@ -344,7 +346,7 @@
 
 <div class="pied-page">
   Tes modifications sont enregistrées automatiquement dès que tu cliques sur « Valider » — aucune manipulation supplémentaire n'est nécessaire. Elles sont visibles instantanément par toi et Marie-Laure, sur tout appareil.
-  <div style="margin-top:10px;font-size:14px;">gestion-aliments-ig — v2 — 08/09/2026 — Validé par Bernard : EN ATTENTE</div>
+  <div style="margin-top:10px;font-size:14px;">gestion-aliments-ig — v4 — 17/09/2026 — Validé par Bernard : EN ATTENTE</div>
 </div>
 
 <div id="index-alpha"></div>
@@ -487,7 +489,7 @@ function filtrerEtAfficher(){
   const terme = document.getElementById('recherche').value.trim().toLowerCase();
   const filtres = aliments
     .map((a, i) => ({...a, index: i}))
-    .filter(a => a.nom.toLowerCase().includes(terme))
+    .filter(a => a.nom.toLowerCase().includes(terme) || a.famille.toLowerCase().includes(terme))
     .filter(a => familleActive === 'Toutes' || a.famille === familleActive)
     .sort((a,b) => a.nom.localeCompare(b.nom, 'fr'));
 
