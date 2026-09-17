@@ -1,5 +1,5 @@
 <!--
-  gestion-aliments-ig — v4 — 17/09/2026 — Validé par Bernard : EN ATTENTE
+  gestion-aliments-ig — v5 — 17/09/2026 — Validé par Bernard
   Cumule :
     - v1 : première version — liste des aliments/IG, édition en direct par champ, sauvegarde
       uniquement via téléchargement manuel du fichier JSON à redéposer sur GitHub
@@ -15,9 +15,11 @@
       glucide).
     - v4 : la case de recherche trouve désormais aussi les aliments par leur famille (ex. taper
       "Fruit" retrouve tous les aliments de la famille "Fruits"), en plus de la recherche par nom.
-  Fichiers precedents : v1 (06/09/2026), v2 (08/09/2026), v3 (08/09/2026)
+    - v5 : les pastilles de familles (et le menu déroulant "famille") sont maintenant triées par
+      ordre alphabétique, pour s'y retrouver plus facilement.
+  Fichiers precedents : v1 (06/09/2026), v2 (08/09/2026), v3 (08/09/2026), v4 (17/09/2026)
 -->
-<meta name="app-version" content="v4-2026-09-17">
+<meta name="app-version" content="v5-2026-09-17">
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -300,7 +302,7 @@
 </head>
 <body>
 
-<h1>Aliments &amp; Index Glycémique <span style="font-size:14px;font-weight:400;color:var(--gris);vertical-align:middle;">v4 &bull; 17/09/2026</span></h1>
+<h1>Aliments &amp; Index Glycémique <span style="font-size:14px;font-weight:400;color:var(--gris);vertical-align:middle;">v5 &bull; 17/09/2026</span></h1>
 <p class="sous-titre">Liste partagée — Bernard &amp; Marie-Laure</p>
 
 <div class="notes-bas-page">
@@ -346,7 +348,7 @@
 
 <div class="pied-page">
   Tes modifications sont enregistrées automatiquement dès que tu cliques sur « Valider » — aucune manipulation supplémentaire n'est nécessaire. Elles sont visibles instantanément par toi et Marie-Laure, sur tout appareil.
-  <div style="margin-top:10px;font-size:14px;">gestion-aliments-ig — v4 — 17/09/2026 — Validé par Bernard : EN ATTENTE</div>
+  <div style="margin-top:10px;font-size:14px;">gestion-aliments-ig — v5 — 17/09/2026 — Validé par Bernard : EN ATTENTE</div>
 </div>
 
 <div id="index-alpha"></div>
@@ -429,7 +431,8 @@ function verifierAnomalies(){
 
 function actualiserBarreFamilles(){
   const famillesUtilisees = [...new Set(aliments.map(a => a.famille).filter(Boolean))];
-  const toutesFamilles = [...new Set([...FAMILLES_BASE, ...famillesUtilisees])];
+  const toutesFamilles = [...new Set([...FAMILLES_BASE, ...famillesUtilisees])]
+    .sort((a, b) => a.localeCompare(b, 'fr'));
 
   const zone = document.getElementById('barre-familles');
   let html = `<button class="pastille-famille${familleActive==='Toutes'?'':' inactive'}" onclick="choisirFamille('Toutes')">Toutes</button>`;
