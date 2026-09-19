@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v21 — 19/09/2026 — Validé par Bernard
+  recettes-igbas — v22 — 19/09/2026
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -40,9 +40,18 @@
       devoir tout effacer et ressaisir dans l'ordre ; (3) lien "Retour au
       site methode-igbas.fr" ajouté en haut de chaque page, pour les clientes
       arrivant depuis le site
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026).
+    - v22 : correctif important — l'enregistrement (et la suppression) d'une
+      recette allait chercher une version fraîche du serveur juste avant
+      d'écrire, au lieu de se fier à la version chargée en début de session ;
+      corrige un risque réel de recettes ou sous-catégories qui disparaissent
+      quand deux personnes travaillent à peu près en même temps (la sauvegarde
+      la plus récente écrasait silencieusement celle de l'autre). Le lien
+      "Retour au site" pointe désormais vers la page précise d'origine (ex.
+      la page Entrées) via un paramètre ?retour=, transmis par le bandeau du
+      site, au lieu de toujours renvoyer vers la page d'accueil
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026).
 -->
-<meta name="app-version" content="v21-2026-09-19">
+<meta name="app-version" content="v22-2026-09-19">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -263,10 +272,10 @@
 <body>
 <div class="app" id="app">
 
-  <a href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
+  <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v21 &bull; 19/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v22 &bull; 19/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -828,11 +837,30 @@ function startNewRecette(){
   setView('admin');
 }
 
+// Récupère la version la plus à jour possible juste avant d'écrire, pour
+// réduire au minimum le risque que deux personnes (Bernard et Marie-Laure)
+// travaillant en même temps ne s'écrasent mutuellement des recettes. Ce
+// n'est pas une protection parfaite (il reste un très court instant entre
+// cette lecture et l'écriture), mais elle réduit la fenêtre à quelques
+// centaines de millisecondes au lieu de toute une session de travail.
+async function recupererDonneesFraiches(){
+  try{
+    const r = await fetch('/api/data', {cache:'no-store'});
+    if(r.ok){
+      const fraiches = await r.json();
+      if(fraiches && Array.isArray(fraiches.recettes)) return fraiches;
+    }
+  }catch(e){ /* on retombe sur la version locale ci-dessous */ }
+  return D;
+}
+
 async function supprimerRecette(id){
   const r = D.recettes.find(x=>x.id===id);
   if(!r) return;
   if(!confirm('Supprimer définitivement la recette « ' + r.titre + ' » ? Cette action ne peut pas être annulée.')) return;
-  D.recettes = D.recettes.filter(x=>x.id!==id);
+  const donneesActuelles = await recupererDonneesFraiches();
+  donneesActuelles.recettes = donneesActuelles.recettes.filter(x=>x.id!==id);
+  D = donneesActuelles;
   await persist();
   setView('catalogue');
 }
@@ -1007,19 +1035,35 @@ async function saveRecette(){
     remarque: document.getElementById('fRemarque').value.trim()
   };
 
-  if(editingId){
-    const idx = D.recettes.findIndex(x=>x.id===editingId);
-    if(idx>-1){ D.recettes[idx] = {...D.recettes[idx], ...champsCommuns}; }
+  const donneesActuelles = await recupererDonneesFraiches();
+  const idEnCours = editingId; // capturé avant d'être remis à null ci-dessous
+
+  if(idEnCours){
+    const idx = donneesActuelles.recettes.findIndex(x=>x.id===idEnCours);
+    if(idx>-1){
+      donneesActuelles.recettes[idx] = {...donneesActuelles.recettes[idx], ...champsCommuns};
+    }else{
+      // Filet de sécurité : la recette n'existe plus côté serveur (rare,
+      // ex. supprimée entre-temps par quelqu'un d'autre) — on la recrée
+      // plutôt que de perdre la saisie en cours.
+      donneesActuelles.recettes.push({
+        id: idEnCours,
+        ficheNum: (donneesActuelles.recettes.reduce((m,r)=>Math.max(m, r.ficheNum||0),0)) + 1,
+        dateCreation: Date.now(),
+        ...champsCommuns
+      });
+    }
     editingId = null;
   }else{
-    const nextFiche = (D.recettes.reduce((m,r)=>Math.max(m, r.ficheNum||0),0)) + 1;
-    D.recettes.push({
+    const nextFiche = (donneesActuelles.recettes.reduce((m,r)=>Math.max(m, r.ficheNum||0),0)) + 1;
+    donneesActuelles.recettes.push({
       id: 'r-' + Date.now(),
       ficheNum: nextFiche,
       dateCreation: Date.now(),
       ...champsCommuns
     });
   }
+  D = donneesActuelles;
   const sauvegardeOk = await persist();
   if(!sauvegardeOk){
     msg.innerHTML = '<div class="msg err">⚠ L\'enregistrement en ligne a échoué (peut-être une photo trop lourde). Rien n\'est perdu sur cet écran, mais réessaie avant de quitter — retire la photo si le problème persiste.</div>';
@@ -1037,10 +1081,23 @@ async function saveRecette(){
 // Permet un lien direct depuis le site vers une catégorie précise, ex.
 // recettes-igbas.pages.dev/?categorie=Entrées — utilisé par le bandeau
 // "Nos recettes" à intégrer sur chaque page de rubrique du site.
+// Le paramètre "retour" (fourni par ce même bandeau) permet en plus au lien
+// "Retour au site" de ramener vers la page précise d'où vient la personne,
+// plutôt que systématiquement vers la page d'accueil.
 (function appliquerCategorieDepuisURL(){
   const params = new URLSearchParams(window.location.search);
   const cat = params.get('categorie');
   if(cat){ currentCat = cat; }
+
+  const retour = params.get('retour');
+  if(retour){
+    try{
+      const url = new URL(retour);
+      if(url.hostname === 'www.methode-igbas.fr' || url.hostname === 'methode-igbas.fr'){
+        document.getElementById('lienRetourSite').href = retour;
+      }
+    }catch(e){ /* adresse de retour invalide : on garde la page d'accueil par défaut */ }
+  }
 })();
 
 loadData();
