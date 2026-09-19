@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v20 — 19/09/2026 — Validé par Bernard
+  recettes-igbas — v21 — 19/09/2026 — Validé par Bernard
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -33,9 +33,16 @@
       catégorie), pour permettre au site internet de renvoyer vers la bonne
       rubrique du catalogue plutôt que de dupliquer les recettes sur des
       pages statiques
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026).
+    - v21 : trois demandes de Marie-Laure/Bernard — (1) possibilité d'ajouter
+      un sous-titre dans la liste d'ingrédients (ex. "Pour la sauce"), sans IG
+      ni quantité, pour regrouper visuellement des composants d'une recette ;
+      (2) réorganisation de l'ordre des ingrédients par flèches ▲▼ au lieu de
+      devoir tout effacer et ressaisir dans l'ordre ; (3) lien "Retour au
+      site methode-igbas.fr" ajouté en haut de chaque page, pour les clientes
+      arrivant depuis le site
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026).
 -->
-<meta name="app-version" content="v20-2026-09-19">
+<meta name="app-version" content="v21-2026-09-19">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -256,8 +263,10 @@
 <body>
 <div class="app" id="app">
 
+  <a href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
+
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v20 &bull; 19/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v21 &bull; 19/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -369,6 +378,7 @@
           <div class="ing-suggest" id="ingSuggest" style="display:none;"></div>
         </div>
         <ul class="ing-list" id="ingList"></ul>
+        <button class="add-btn" style="margin-top:8px;" onclick="ajouterSousTitreIngredients()">+ Ajouter un sous-titre (ex. « Pour la sauce »)</button>
         <div id="ingATraiter" class="ing-a-traiter" style="display:none;"></div>
       </div>
 
@@ -667,9 +677,10 @@ function igLabel(ig){
   return 'IG très élevé';
 }
 function igMoyen(ingredients){
-  if(!ingredients.length) return 0;
-  const sum = ingredients.reduce((s,i)=>s+(i.ig||0),0);
-  return Math.round(sum/ingredients.length);
+  const vraisIngredients = (ingredients||[]).filter(i => i.titre === undefined);
+  if(!vraisIngredients.length) return 0;
+  const sum = vraisIngredients.reduce((s,i)=>s+(i.ig||0),0);
+  return Math.round(sum/vraisIngredients.length);
 }
 function estNouveau(r){
   if(!r.dateCreation) return false;
@@ -786,7 +797,9 @@ function openDetail(id){
         </div>
         <div class="section-title">Ingrédients</div>
         <ul class="ingredients">
-          ${r.ingredients.map(i=>`<li>
+          ${r.ingredients.map(i=> i.titre !== undefined
+            ? `<li style="border-bottom:none;padding-top:16px;"><b style="color:var(--herb-dark);font-size:16px;">${escapeHtml(i.titre)}</b></li>`
+            : `<li>
             <span class="ing-left"><span class="dot"></span>${escapeHtml(i.qty||'')} ${escapeHtml(i.nom)}${i.detail? ` <span class="ing-detail">(${escapeHtml(i.detail)})</span>` : ''}</span>
             <span class="ig-pill ${igCls(i.ig)}">${i.ig}</span>
           </li>`).join('')}
@@ -917,15 +930,49 @@ function removeIngredient(idx){ currentIngredients.splice(idx,1); renderIngList(
 function updateQty(idx, val){ currentIngredients[idx].qty = val; }
 function updateDetail(idx, val){ currentIngredients[idx].detail = val; }
 
+// Sous-titres de groupe (ex. "Pour la sauce") : un repère textuel inséré dans
+// la même liste que les ingrédients, sans IG ni quantité. Tout ce qui suit un
+// sous-titre lui est rattaché visuellement, jusqu'au sous-titre suivant.
+function ajouterSousTitreIngredients(){
+  currentIngredients.push({titre: ''});
+  renderIngList();
+}
+function updateGroupeTitre(idx, val){ currentIngredients[idx].titre = val; }
+
+// Réorganisation par flèches (plus simple et plus fiable qu'un glisser-déposer
+// sur mobile) : échange l'élément avec son voisin immédiat.
+function deplacerIngredient(idx, sens){
+  const cible = idx + sens;
+  if(cible < 0 || cible >= currentIngredients.length) return;
+  const tmp = currentIngredients[idx];
+  currentIngredients[idx] = currentIngredients[cible];
+  currentIngredients[cible] = tmp;
+  renderIngList();
+}
+
 function renderIngList(){
   const ul = document.getElementById('ingList');
-  ul.innerHTML = currentIngredients.map((i,idx)=>`<li>
-    <input class="qty" placeholder="Quantité" value="${escapeHtml(i.qty)}" oninput="updateQty(${idx}, this.value)">
-    <span class="name">${escapeHtml(i.nom)}</span>
-    <span class="ig-pill ${igCls(i.ig)}">${i.ig}</span>
-    <input class="detail" placeholder="Précision (ex. de cidre, blanc de...)" value="${escapeHtml(i.detail||'')}" oninput="updateDetail(${idx}, this.value)">
-    <button class="rm" onclick="removeIngredient(${idx})">&times;</button>
-  </li>`).join('');
+  ul.innerHTML = currentIngredients.map((i,idx)=>{
+    const fleches = `<span style="display:flex;flex-direction:column;gap:2px;">
+      <button class="rm" style="font-size:14px;line-height:1;" title="Monter" onclick="deplacerIngredient(${idx}, -1)" ${idx===0?'disabled':''}>▲</button>
+      <button class="rm" style="font-size:14px;line-height:1;" title="Descendre" onclick="deplacerIngredient(${idx}, 1)" ${idx===currentIngredients.length-1?'disabled':''}>▼</button>
+    </span>`;
+    if(i.titre !== undefined){
+      return `<li style="background:#FBFCF9;border-radius:8px;">
+        ${fleches}
+        <input class="name" style="font-weight:700;color:var(--herb-dark);" placeholder="Titre du sous-groupe (ex. Pour la sauce)" value="${escapeHtml(i.titre)}" oninput="updateGroupeTitre(${idx}, this.value)">
+        <button class="rm" onclick="removeIngredient(${idx})">&times;</button>
+      </li>`;
+    }
+    return `<li>
+      ${fleches}
+      <input class="qty" placeholder="Quantité" value="${escapeHtml(i.qty)}" oninput="updateQty(${idx}, this.value)">
+      <span class="name">${escapeHtml(i.nom)}</span>
+      <span class="ig-pill ${igCls(i.ig)}">${i.ig}</span>
+      <input class="detail" placeholder="Précision (ex. de cidre, blanc de...)" value="${escapeHtml(i.detail||'')}" oninput="updateDetail(${idx}, this.value)">
+      <button class="rm" onclick="removeIngredient(${idx})">&times;</button>
+    </li>`;
+  }).join('');
 }
 
 function addStep(){ currentSteps.push(''); renderSteps(); }
