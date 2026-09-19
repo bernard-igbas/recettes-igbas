@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v18 — 18/09/2026 — Validé par Bernard
+  recettes-igbas — v19 — 18/09/2026 — Validé par Bernard
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -22,9 +22,15 @@
     - v16 : correctif — la recherche d'ingrédients lisait /aliments.json, une copie figée jamais régénérée depuis sa création (décalage constaté avec les aliments ajoutés depuis dans gestion-aliments-ig.html, ex. "Fromage" visible dans l'outil IG mais absent de la recherche d'ingrédients) ; lit maintenant directement /api/aliments, la même base vivante (Cloudflare KV) que gestion-aliments-ig.html, les deux pages étant servies sur le même déploiement recettes-igbas.pages.dev
     - v17 : ajout du nombre de fiches entre parenthèses sur chaque bouton de la barre de catégories principale (Toutes, Petits Déjeuners, Entrées, Accompagnements, Plats, Desserts), comme c'était déjà le cas pour les sous-catégories ; les compteurs suivent la recherche en cours (si un mot est tapé dans la barre de recherche, ils reflètent le nombre de résultats par catégorie, pas le total général)
     - v18 : la barre de catégories principale (comme le menu déroulant du formulaire) n'est plus figée aux 5 rubriques de base — elle inclut désormais aussi toute nouvelle rubrique créée via "➕ Nouvelle catégorie…" (ex. "Encas"), qui apparaissait déjà dans le formulaire mais jamais comme bouton de filtre dans le catalogue
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026).
+    - v19 : l'enregistrement d'une recette affiche désormais un message d'alerte
+      visible si la sauvegarde en ligne échoue (au lieu d'échouer en silence),
+      pour éviter qu'un échec passe inaperçu — hypothèse la plus probable pour
+      le cas signalé par Bernard d'une photo qui disparaît après une mise à
+      jour ultérieure : l'enregistrement précédent n'aurait alors jamais
+      atteint le serveur, sans que rien ne le signale à l'écran
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026).
 -->
-<meta name="app-version" content="v18-2026-09-18">
+<meta name="app-version" content="v19-2026-09-18">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -246,7 +252,7 @@
 <div class="app" id="app">
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v18 &bull; 18/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v19 &bull; 18/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
@@ -423,14 +429,17 @@ function fallbackLocal(){
 }
 async function persist(){
   localStorage.setItem('recettes-igbas-data', JSON.stringify(D));
+  let ok = true;
   try{
-    await fetch('/api/data', {
+    const reponse = await fetch('/api/data', {
       method:'POST',
       headers:{'Content-Type':'application/json','X-Recettes-Code':RECETTES_CODE},
       body: JSON.stringify(D)
     });
-  }catch(e){ /* localStorage reste la sauvegarde de secours */ }
+    if(!reponse.ok){ ok = false; }
+  }catch(e){ ok = false; }
   actualiserListesCategories();
+  return ok;
 }
 
 // ===================== CATÉGORIES & SOUS-CATÉGORIES =====================
@@ -959,7 +968,11 @@ async function saveRecette(){
       ...champsCommuns
     });
   }
-  await persist();
+  const sauvegardeOk = await persist();
+  if(!sauvegardeOk){
+    msg.innerHTML = '<div class="msg err">⚠ L\'enregistrement en ligne a échoué (peut-être une photo trop lourde). Rien n\'est perdu sur cet écran, mais réessaie avant de quitter — retire la photo si le problème persiste.</div>';
+    return;
+  }
   msg.innerHTML = '<div class="msg ok">Recette enregistrée !</div>';
   if(importIndex > -1 && importIndex < importQueue.length){
     setTimeout(()=>{ suivanteImport(); }, 700);
