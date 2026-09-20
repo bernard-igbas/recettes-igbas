@@ -2,8 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v26 — 20/09/2026 — Validé par Bernard
-  Cumule :
+  recettes-igbas — v27 — 20/09/2026 — Validé
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
     - v3 : ajout onglet "Importer un lot (PDF)" — colle un lot de recettes pré-analysées par Claude, vérifie chaque ingrédient un par un (rien n'est ajouté sans validation), puis enregistre et enchaîne automatiquement sur la recette suivante du lot ; ajout de l'option de classification "IG BAS - PL/GP"
@@ -81,9 +80,16 @@
       (10s pour la relecture, 20s pour l'envoi) : au-delà, l'enregistrement
       se poursuit avec la version connue localement plutôt que de bloquer
       indéfiniment
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026).
+    - v27 : correctif de la limite de temps elle-même — elle ne couvrait que
+      l'arrivée de la réponse du serveur, pas sa lecture ensuite (potentiel-
+      lement plusieurs Mo avec toutes les photos accumulées), donc restait
+      sans effet si c'est cette lecture qui traînait ; constaté par Bernard
+      (blocage de plusieurs minutes malgré une connexion fibre stable). La
+      limite de 10 secondes couvre désormais l'opération complète, lecture
+      du contenu incluse
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026).
 -->
-<meta name="app-version" content="v26-2026-09-20">
+<meta name="app-version" content="v27-2026-09-20">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -307,7 +313,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v26 &bull; 20/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v27 &bull; 20/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -904,20 +910,23 @@ function startNewRecette(){
 // n'est pas une protection parfaite (il reste un très court instant entre
 // cette lecture et l'écriture), mais elle réduit la fenêtre à quelques
 // centaines de millisecondes au lieu de toute une session de travail.
-// Limite de temps de 10 secondes : la base grossit avec chaque photo ajoutée
-// (elle est transmise en entier à chaque lecture), donc sur une connexion
-// lente cette étape peut traîner — mieux vaut retomber sur la version locale
-// que de bloquer l'enregistrement indéfiniment.
+// Limite de temps de 10 secondes portant sur l'opération complète (réponse
+// ET lecture du contenu) : la base grossit avec chaque photo ajoutée (elle
+// est transmise en entier à chaque lecture), et c'est cette lecture du
+// contenu, pas seulement l'attente de la réponse, qui peut traîner sur une
+// base volumineuse — mieux vaut retomber sur la version locale que de
+// bloquer l'enregistrement indéfiniment.
 async function recupererDonneesFraiches(){
   try{
-    const controleur = new AbortController();
-    const limite = setTimeout(() => controleur.abort(), 10000);
-    const r = await fetch('/api/data', {cache:'no-store', signal: controleur.signal});
-    clearTimeout(limite);
-    if(r.ok){
-      const fraiches = await r.json();
-      if(fraiches && Array.isArray(fraiches.recettes)) return fraiches;
-    }
+    const fraiches = await Promise.race([
+      (async () => {
+        const r = await fetch('/api/data', {cache:'no-store'});
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return await r.json();
+      })(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('délai dépassé')), 10000))
+    ]);
+    if(fraiches && Array.isArray(fraiches.recettes)) return fraiches;
   }catch(e){ /* on retombe sur la version locale ci-dessous, y compris en cas de dépassement du délai */ }
   return D;
 }
