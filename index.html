@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v23 — 19/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v25 — 20/09/2026 — Validé par Bernard
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -56,9 +56,24 @@
       qui ouvre une fois un lien avec le code (?admin=...), mémorisé ensuite
       sur cet appareil. Les clientes ne voient plus que rubrique →
       sous-rubrique → recette
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026).
+    - v24 : correctif — l'ajout d'une photo restait bloqué sans aucun message
+      quand le navigateur ne savait pas lire son format (cas de certains
+      originaux FileMaker en TIFF ou HEIC, entre autres), donnant l'impression
+      d'une page figée. La zone de dépôt affiche maintenant "Traitement en
+      cours…", puis un message d'erreur clair si l'image ne peut pas être
+      lue, avec un délai de sécurité de 8 secondes pour ne jamais rester
+      bloqué sans explication
+    - v25 : correctif du correctif — les photos posant problème étaient en
+      fait de simples JPG/PNG, mais très volumineuses (originaux FileMaker) ;
+      le délai de 8 secondes de la v24 les interrompait à tort avec un faux
+      message "format non reconnu" avant qu'elles aient fini d'être traitées,
+      ce qui explique l'enregistrement sans photo malgré tout. Le message
+      d'attente est maintenant purement informatif et n'interrompt plus
+      jamais le traitement en cours — seule une vraie erreur de lecture
+      (fichier illisible) est désormais bloquante
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026).
 -->
-<meta name="app-version" content="v23-2026-09-19">
+<meta name="app-version" content="v25-2026-09-20">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -282,7 +297,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v23 &bull; 19/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v25 &bull; 20/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -382,7 +397,7 @@
 
       <div class="field">
         <label>Photo</label>
-        <div class="photo-drop" onclick="document.getElementById('fPhotoFile').click()">Cliquer pour choisir une photo</div>
+        <div class="photo-drop" id="photoDropZone" onclick="document.getElementById('fPhotoFile').click()">Cliquer pour choisir une photo</div>
         <input type="file" id="fPhotoFile" accept="image/*" style="display:none" onchange="handlePhoto(event)">
         <img id="photoPreview" class="photo-preview">
       </div>
@@ -948,10 +963,46 @@ function resetForm(){
 function handlePhoto(evt){
   const file = evt.target.files[0];
   if(!file) return;
+
+  const zone = document.getElementById('photoDropZone');
+  const texteInitial = 'Cliquer pour choisir une photo';
+  let echoue = false;
+
+  zone.textContent = 'Traitement de la photo en cours…';
+  zone.style.color = 'var(--herb-dark)';
+
+  // Purement informatif : certains originaux (FileMaker, photos très
+  // volumineuses) prennent simplement plus de temps à traiter. On ne coupe
+  // jamais le traitement en cours — on prévient seulement que ça continue,
+  // pour ne plus donner l'impression d'une page figée sans explication.
+  const avertissementLenteur = setTimeout(function(){
+    if(echoue) return;
+    zone.textContent = 'Toujours en cours… (photo volumineuse, ça peut prendre un instant de plus)';
+  }, 6000);
+
   const reader = new FileReader();
+  reader.onerror = function(){
+    echoue = true;
+    clearTimeout(avertissementLenteur);
+    zone.textContent = '⚠ Impossible de lire ce fichier. Essaie une autre photo (JPG ou PNG).';
+    zone.style.color = '#c0392b';
+  };
   reader.onload = function(e){
     const img = new Image();
+    img.onerror = function(){
+      echoue = true;
+      clearTimeout(avertissementLenteur);
+      zone.textContent = '⚠ Ce format d\'image n\'est pas reconnu par le navigateur. Enregistre-la en JPG ou PNG, puis réessaie.';
+      zone.style.color = '#c0392b';
+    };
     img.onload = function(){
+      if(echoue) return;
+      clearTimeout(avertissementLenteur);
+      if(!img.width || !img.height){
+        zone.textContent = '⚠ Cette image semble vide ou corrompue. Essaie une autre photo.';
+        zone.style.color = '#c0392b';
+        return;
+      }
       const canvas = document.createElement('canvas');
       const maxW = 800;
       const scale = Math.min(1, maxW/img.width);
@@ -962,6 +1013,8 @@ function handlePhoto(evt){
       const prev = document.getElementById('photoPreview');
       prev.src = currentPhoto;
       prev.style.display = 'block';
+      zone.textContent = texteInitial;
+      zone.style.color = '';
     };
     img.src = e.target.result;
   };
