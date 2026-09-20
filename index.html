@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v28 — 20/09/2026
+  recettes-igbas — v27 — 20/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -88,17 +88,9 @@
       (blocage de plusieurs minutes malgré une connexion fibre stable). La
       limite de 10 secondes couvre désormais l'opération complète, lecture
       du contenu incluse
-    - v28 : blocage encore constaté par Bernard malgré la v27 (15 minutes,
-      fibre stable) — ajout d'une minuterie de sécurité de 25 secondes
-      totalement indépendante, au niveau du bouton "Enregistrer la recette"
-      lui-même plutôt que dans les fonctions internes : quoi qu'il arrive en
-      dessous, le bouton redevient utilisable après 25 secondes au grand
-      maximum. Piste à vérifier en parallèle : un cache navigateur qui
-      servirait encore une version antérieure du code malgré le dépôt sur
-      GitHub
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026).
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026).
 -->
-<meta name="app-version" content="v28-2026-09-20">
+<meta name="app-version" content="v27-2026-09-20">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -322,7 +314,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v28 &bull; 20/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v27 &bull; 20/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -1139,7 +1131,31 @@ function renderSteps(){
   </div>`).join('');
 }
 
-async function coeurEnregistrementRecette(champsCommuns){
+async function saveRecette(){
+  const titre = document.getElementById('fTitre').value.trim();
+  const msg = document.getElementById('saveMsg');
+  if(!titre){ msg.innerHTML = '<div class="msg err">Le titre est obligatoire.</div>'; return; }
+  if(!currentIngredients.length){ msg.innerHTML = '<div class="msg err">Ajoute au moins un ingrédient.</div>'; return; }
+
+  const boutonEnregistrer = document.querySelector('.save-btn');
+  const texteBoutonInitial = boutonEnregistrer ? boutonEnregistrer.textContent : '';
+  if(boutonEnregistrer){ boutonEnregistrer.textContent = 'Enregistrement…'; boutonEnregistrer.disabled = true; }
+  msg.innerHTML = '<div class="msg" style="background:#eef2ec;color:#5B6B54;">Enregistrement en cours…</div>';
+
+  const champsCommuns = {
+    titre,
+    categorie: document.getElementById('fCategorie').value,
+    sousCategorie: document.getElementById('fSousCategorie').value.trim(),
+    niveau: document.getElementById('fNiveau').value,
+    classification: document.getElementById('fClassification').value,
+    personnes: document.getElementById('fPersonnes').value.trim(),
+    temps: document.getElementById('fTemps').value.trim(),
+    photo: currentPhoto,
+    ingredients: currentIngredients,
+    etapes: currentSteps.filter(s=>s.trim()),
+    remarque: document.getElementById('fRemarque').value.trim()
+  };
+
   const donneesActuelles = await recupererDonneesFraiches();
   const idEnCours = editingId; // capturé avant d'être remis à null ci-dessous
 
@@ -1169,47 +1185,7 @@ async function coeurEnregistrementRecette(champsCommuns){
     });
   }
   D = donneesActuelles;
-  return await persist();
-}
-
-async function saveRecette(){
-  const titre = document.getElementById('fTitre').value.trim();
-  const msg = document.getElementById('saveMsg');
-  if(!titre){ msg.innerHTML = '<div class="msg err">Le titre est obligatoire.</div>'; return; }
-  if(!currentIngredients.length){ msg.innerHTML = '<div class="msg err">Ajoute au moins un ingrédient.</div>'; return; }
-
-  const boutonEnregistrer = document.querySelector('.save-btn');
-  const texteBoutonInitial = boutonEnregistrer ? boutonEnregistrer.textContent : '';
-  if(boutonEnregistrer){ boutonEnregistrer.textContent = 'Enregistrement…'; boutonEnregistrer.disabled = true; }
-  msg.innerHTML = '<div class="msg" style="background:#eef2ec;color:#5B6B54;">Enregistrement en cours…</div>';
-
-  const champsCommuns = {
-    titre,
-    categorie: document.getElementById('fCategorie').value,
-    sousCategorie: document.getElementById('fSousCategorie').value.trim(),
-    niveau: document.getElementById('fNiveau').value,
-    classification: document.getElementById('fClassification').value,
-    personnes: document.getElementById('fPersonnes').value.trim(),
-    temps: document.getElementById('fTemps').value.trim(),
-    photo: currentPhoto,
-    ingredients: currentIngredients,
-    etapes: currentSteps.filter(s=>s.trim()),
-    remarque: document.getElementById('fRemarque').value.trim()
-  };
-
-  // Minuterie de sécurité totalement indépendante des délais internes : quoi
-  // qu'il arrive en dessous (réseau, serveur, navigateur), l'écran ne doit
-  // jamais rester bloqué plus de 25 secondes sans redevenir utilisable.
-  let sauvegardeOk;
-  try{
-    sauvegardeOk = await Promise.race([
-      coeurEnregistrementRecette(champsCommuns),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('délai global dépassé')), 25000))
-    ]);
-  }catch(e){
-    sauvegardeOk = false;
-  }
-
+  const sauvegardeOk = await persist();
   if(boutonEnregistrer){ boutonEnregistrer.textContent = texteBoutonInitial; boutonEnregistrer.disabled = false; }
   if(!sauvegardeOk){
     msg.innerHTML = '<div class="msg err">⚠ L\'enregistrement en ligne a échoué ou a pris trop de temps. Rien n\'est perdu sur cet écran, mais réessaie avant de quitter.</div>';
