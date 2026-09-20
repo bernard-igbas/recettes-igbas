@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v22 — 19/09/2026
+  recettes-igbas — v23 — 19/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -49,9 +49,16 @@
       "Retour au site" pointe désormais vers la page précise d'origine (ex.
       la page Entrées) via un paramètre ?retour=, transmis par le bandeau du
       site, au lieu de toujours renvoyer vers la page d'accueil
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026).
+    - v23 : ajout d'une vraie barrière entre Bernard/Marie-Laure et les
+      clientes — par défaut, "Ajouter une recette", "Importer un lot (PDF)",
+      "Modifier"/"Supprimer une recette" et l'étiquette de version sont
+      retirés de la page (pas juste cachés visuellement) ; accès réservé à
+      qui ouvre une fois un lien avec le code (?admin=...), mémorisé ensuite
+      sur cet appareil. Les clientes ne voient plus que rubrique →
+      sous-rubrique → recette
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026).
 -->
-<meta name="app-version" content="v22-2026-09-19">
+<meta name="app-version" content="v23-2026-09-19">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -275,11 +282,11 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag" id="versionTag">v22 &bull; 19/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v23 &bull; 19/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
-      <button id="tabAdmin" onclick="startNewRecette()">Ajouter une recette</button>
-      <button id="tabImport" onclick="ouvrirImport()">Importer un lot (PDF)</button>
+      <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
+      <button id="tabImport" class="admin-only" onclick="ouvrirImport()">Importer un lot (PDF)</button>
     </nav>
   </header>
 
@@ -424,6 +431,29 @@ const ALIMENTS_URL = "/api/aliments";
 
 const DISCLAIMER_TXT = "Cette recette est le fruit d'une interprétation personnelle. Elle est élaborée selon mes critères, chacun(e) pourra l'adapter à son environnement social et culturel. Elle est un guide de bonnes pratiques culinaires et peut selon le cas être diversement appréciée par les uns ou les autres. Il va de votre devoir de vérifier qu'il n'y ait aucune contre-indication allergène ou médicale particulière envers les personnes susceptibles de prendre ce repas.";
 
+// ===================== MODE ADMIN =====================
+// Barrière entre ce que voient Bernard/Marie-Laure et ce que voit une
+// cliente : par défaut, personne n'a accès à "Ajouter une recette",
+// "Importer un lot (PDF)", "Modifier"/"Supprimer" une recette, ni à
+// l'étiquette de version — ces éléments sont retirés de la page, pas
+// seulement cachés visuellement. Pour les débloquer sur un appareil, on
+// ouvre une seule fois un lien de la forme :
+//   https://recettes-igbas.pages.dev/?admin=RECETTES_CODE_2026_09_05_05:17
+// Le code est mémorisé ensuite sur cet appareil (localStorage), plus besoin
+// de le retaper. Même code que RECETTES_CODE, pour n'avoir qu'un seul code
+// à retenir.
+(function initModeAdmin(){
+  const params = new URLSearchParams(window.location.search);
+  const codeFourni = params.get('admin');
+  if(codeFourni === RECETTES_CODE){
+    localStorage.setItem('recettes_admin_ok', 'true');
+  }
+  modeAdmin = localStorage.getItem('recettes_admin_ok') === 'true';
+  if(!modeAdmin){
+    document.querySelectorAll('.admin-only').forEach(el => el.remove());
+  }
+})();
+
 // ===================== ÉTAT =====================
 let D = { recettes: [] };
 let ALIMENTS = [];
@@ -552,8 +582,8 @@ function ouvrirImport(){
   document.getElementById('viewAdmin').style.display='none';
   document.getElementById('viewImport').style.display='';
   document.getElementById('tabCatalogue').classList.remove('active');
-  document.getElementById('tabAdmin').classList.remove('active');
-  document.getElementById('tabImport').classList.add('active');
+  if(document.getElementById('tabAdmin')){ document.getElementById('tabAdmin').classList.remove('active'); }
+  if(document.getElementById('tabImport')){ document.getElementById('tabImport').classList.add('active'); }
   document.getElementById('importJson').value='';
   document.getElementById('importMsg').innerHTML='';
   document.getElementById('btnCommencerImport').style.display='none';
@@ -594,8 +624,8 @@ function chargerRecetteImport(i){
   document.getElementById('viewImport').style.display = 'none';
   document.getElementById('viewAdmin').style.display = '';
   document.getElementById('tabCatalogue').classList.remove('active');
-  document.getElementById('tabAdmin').classList.remove('active');
-  document.getElementById('tabImport').classList.remove('active');
+  if(document.getElementById('tabAdmin')){ document.getElementById('tabAdmin').classList.remove('active'); }
+  if(document.getElementById('tabImport')){ document.getElementById('tabImport').classList.remove('active'); }
   document.querySelector('.form-title').textContent = 'Vérifier la recette importée';
 
   const banner = document.getElementById('importBanner');
@@ -662,12 +692,14 @@ function setView(v){
   document.getElementById('ingATraiter').innerHTML = '';
   document.getElementById('ingATraiter').style.display = 'none';
   document.getElementById('viewImport').style.display = 'none';
-  document.getElementById('tabImport').classList.remove('active');
+  const btnImport = document.getElementById('tabImport');
+  if(btnImport){ btnImport.classList.remove('active'); }
   document.getElementById('viewCatalogue').style.display = v==='catalogue' ? '' : 'none';
   document.getElementById('viewDetail').style.display = v==='detail' ? '' : 'none';
   document.getElementById('viewAdmin').style.display = v==='admin' ? '' : 'none';
   document.getElementById('tabCatalogue').classList.toggle('active', v==='catalogue');
-  document.getElementById('tabAdmin').classList.toggle('active', v==='admin');
+  const btnAdmin = document.getElementById('tabAdmin');
+  if(btnAdmin){ btnAdmin.classList.toggle('active', v==='admin'); }
   if(v==='admin') resetForm();
   window.scrollTo(0,0);
 }
@@ -823,8 +855,8 @@ function openDetail(id){
     </div>
     <div class="cta-bar">
       <button class="download-btn" onclick="window.print()">Télécharger la recette en PDF</button>
-      <button class="edit-btn" onclick="editRecette('${r.id}')">Modifier cette recette</button>
-      <button class="delete-btn" onclick="supprimerRecette('${r.id}')">Supprimer cette recette</button>
+      ${modeAdmin ? `<button class="edit-btn" onclick="editRecette('${r.id}')">Modifier cette recette</button>
+      <button class="delete-btn" onclick="supprimerRecette('${r.id}')">Supprimer cette recette</button>` : ''}
     </div>
   `;
   document.getElementById('detailContent').innerHTML = html;
@@ -873,7 +905,7 @@ function editRecette(id){
   document.getElementById('viewDetail').style.display = 'none';
   document.getElementById('viewAdmin').style.display = '';
   document.getElementById('tabCatalogue').classList.remove('active');
-  document.getElementById('tabAdmin').classList.add('active');
+  if(document.getElementById('tabAdmin')){ document.getElementById('tabAdmin').classList.add('active'); }
   document.querySelector('.form-title').textContent = 'Modifier la recette';
 
   document.getElementById('fTitre').value = r.titre || '';
