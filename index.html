@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v25 — 20/09/2026 — Validé par Bernard
+  recettes-igbas — v26 — 20/09/2026 — Validé par Bernard
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -71,9 +71,19 @@
       d'attente est maintenant purement informatif et n'interrompt plus
       jamais le traitement en cours — seule une vraie erreur de lecture
       (fichier illisible) est désormais bloquante
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026).
+    - v26 : le vrai coupable était ailleurs — le correctif anti-écrasement
+      de la v22 (relecture de la base avant chaque enregistrement) n'avait
+      aucune limite de temps ni aucun message pendant cette relecture ; plus
+      la base grossit (chaque photo l'alourdit), plus cette étape prend du
+      temps, ce qui donnait l'impression que le bouton "Enregistrer la
+      recette" restait bloqué sans explication. Ajout d'un message visible
+      "Enregistrement…" pendant toute l'opération, et d'une limite de temps
+      (10s pour la relecture, 20s pour l'envoi) : au-delà, l'enregistrement
+      se poursuit avec la version connue localement plutôt que de bloquer
+      indéfiniment
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026).
 -->
-<meta name="app-version" content="v25-2026-09-20">
+<meta name="app-version" content="v26-2026-09-20">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -297,7 +307,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v25 &bull; 20/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v26 &bull; 20/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -500,11 +510,15 @@ async function persist(){
   localStorage.setItem('recettes-igbas-data', JSON.stringify(D));
   let ok = true;
   try{
+    const controleur = new AbortController();
+    const limite = setTimeout(() => controleur.abort(), 20000);
     const reponse = await fetch('/api/data', {
       method:'POST',
       headers:{'Content-Type':'application/json','X-Recettes-Code':RECETTES_CODE},
-      body: JSON.stringify(D)
+      body: JSON.stringify(D),
+      signal: controleur.signal
     });
+    clearTimeout(limite);
     if(!reponse.ok){ ok = false; }
   }catch(e){ ok = false; }
   actualiserListesCategories();
@@ -890,14 +904,21 @@ function startNewRecette(){
 // n'est pas une protection parfaite (il reste un très court instant entre
 // cette lecture et l'écriture), mais elle réduit la fenêtre à quelques
 // centaines de millisecondes au lieu de toute une session de travail.
+// Limite de temps de 10 secondes : la base grossit avec chaque photo ajoutée
+// (elle est transmise en entier à chaque lecture), donc sur une connexion
+// lente cette étape peut traîner — mieux vaut retomber sur la version locale
+// que de bloquer l'enregistrement indéfiniment.
 async function recupererDonneesFraiches(){
   try{
-    const r = await fetch('/api/data', {cache:'no-store'});
+    const controleur = new AbortController();
+    const limite = setTimeout(() => controleur.abort(), 10000);
+    const r = await fetch('/api/data', {cache:'no-store', signal: controleur.signal});
+    clearTimeout(limite);
     if(r.ok){
       const fraiches = await r.json();
       if(fraiches && Array.isArray(fraiches.recettes)) return fraiches;
     }
-  }catch(e){ /* on retombe sur la version locale ci-dessous */ }
+  }catch(e){ /* on retombe sur la version locale ci-dessous, y compris en cas de dépassement du délai */ }
   return D;
 }
 
@@ -1106,6 +1127,11 @@ async function saveRecette(){
   if(!titre){ msg.innerHTML = '<div class="msg err">Le titre est obligatoire.</div>'; return; }
   if(!currentIngredients.length){ msg.innerHTML = '<div class="msg err">Ajoute au moins un ingrédient.</div>'; return; }
 
+  const boutonEnregistrer = document.querySelector('.save-btn');
+  const texteBoutonInitial = boutonEnregistrer ? boutonEnregistrer.textContent : '';
+  if(boutonEnregistrer){ boutonEnregistrer.textContent = 'Enregistrement…'; boutonEnregistrer.disabled = true; }
+  msg.innerHTML = '<div class="msg" style="background:#eef2ec;color:#5B6B54;">Enregistrement en cours…</div>';
+
   const champsCommuns = {
     titre,
     categorie: document.getElementById('fCategorie').value,
@@ -1150,8 +1176,9 @@ async function saveRecette(){
   }
   D = donneesActuelles;
   const sauvegardeOk = await persist();
+  if(boutonEnregistrer){ boutonEnregistrer.textContent = texteBoutonInitial; boutonEnregistrer.disabled = false; }
   if(!sauvegardeOk){
-    msg.innerHTML = '<div class="msg err">⚠ L\'enregistrement en ligne a échoué (peut-être une photo trop lourde). Rien n\'est perdu sur cet écran, mais réessaie avant de quitter — retire la photo si le problème persiste.</div>';
+    msg.innerHTML = '<div class="msg err">⚠ L\'enregistrement en ligne a échoué ou a pris trop de temps. Rien n\'est perdu sur cet écran, mais réessaie avant de quitter.</div>';
     return;
   }
   msg.innerHTML = '<div class="msg ok">Recette enregistrée !</div>';
