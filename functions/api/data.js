@@ -1,7 +1,11 @@
 // ============================================================
-// recettes-igbas (data.js) — v1.2 — 21/09/2026 — Validé par Bernard : EN ATTENTE
+// recettes-igbas (data.js) — v1.3 — 21/09/2026 — Validé par Bernard : EN ATTENTE
 // ------------------------------------------------------------
 // CHANGELOG
+//  v1.3 (21/09/2026) : test d'ENVOI (POST) de diagnostic : /api/data?diag=MOT
+//    (reçoit les données comme un vrai enregistrement mais les écrit
+//    uniquement dans la clé de test "diag-test-post", jamais dans la vraie base).
+//    Utilisé par la page test-enregistrement.html. À RETIRER après diagnostic.
 //  v1.2 (21/09/2026) : le test de diagnostic accepte aussi un mot de test
 //    temporaire (igbas-test-2109), pour ne pas avoir à chercher le vrai code.
 //    À RETIRER une fois le diagnostic terminé.
@@ -32,7 +36,7 @@ function messageErreur(e) {
 }
 
 async function diagnostic(env) {
-  const sortie = { fichier: "data.js v1.2 — 21/09/2026", tests: {} };
+  const sortie = { fichier: "data.js v1.3 — 21/09/2026", tests: {} };
   let brut = null;
 
   // Test 1 : lire la vraie base
@@ -72,6 +76,33 @@ async function diagnostic(env) {
   });
 }
 
+async function diagnosticEnvoi(request, env, diag) {
+  if (!diag || (diag !== env.RECETTES_CODE && diag !== MOT_TEST_TEMPORAIRE)) {
+    return new Response(JSON.stringify({ error: "Code invalide" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+  try {
+    const body = await request.text();
+    const parsed = JSON.parse(body);
+    if (!parsed || !Array.isArray(parsed.recettes)) {
+      throw new Error("Format invalide");
+    }
+    await env.RECETTES_KV.put("diag-test-post", JSON.stringify(parsed));
+    return new Response(JSON.stringify({
+      ok: true,
+      recu_caracteres: body.length,
+      nb_recettes: parsed.recettes.length
+    }), { headers: { "Content-Type": "application/json" } });
+  } catch (e) {
+    return new Response(JSON.stringify({
+      error: "Échec du test d'envoi",
+      detail: messageErreur(e)
+    }), { status: 400, headers: { "Content-Type": "application/json" } });
+  }
+}
+
 export async function onRequestGet(context) {
   const { request, env } = context;
 
@@ -103,6 +134,13 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
+
+  // Mode diagnostic d'envoi : /api/data?diag=MOT (n'écrit que dans une clé de test)
+  const diagPost = new URL(request.url).searchParams.get("diag");
+  if (diagPost !== null) {
+    return diagnosticEnvoi(request, env, diagPost);
+  }
+
   const code = request.headers.get("X-Recettes-Code");
   if (!code || code !== env.RECETTES_CODE) {
     return new Response(JSON.stringify({ error: "Code invalide" }), {
