@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v29 — 21/09/2026 — Validé par Bernard
+  recettes-igbas — v30 — 21/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -102,9 +102,19 @@
       hors-ligne) est désormais tentée sans jamais bloquer l'envoi au serveur ;
       l'enregistrement est de plus protégé pour que le bouton se libère
       toujours, avec un message clair
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026).
+    - v30 : SÉCURITÉ — le code secret d'enregistrement n'est plus écrit dans
+      ce fichier (n'importe qui pouvait le lire en affichant le code source de
+      la page, puis modifier ou effacer les recettes). Il est désormais
+      uniquement connu du serveur (variable Cloudflare RECETTES_ADMIN_CODE).
+      Pour activer l'accès administrateur sur un appareil, on ouvre une seule
+      fois le lien https://recettes-igbas.pages.dev/?admin=LECODE : le serveur
+      vérifie le code, l'appareil le mémorise, et il est aussitôt effacé de la
+      barre d'adresse. Si le serveur refuse un jour le code (changement), un
+      message demande de rouvrir le lien d'accès. Les appareils déjà débloqués
+      avant la v30 doivent rouvrir le lien une fois. Nécessite data.js v1.5
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026).
 -->
-<meta name="app-version" content="v29-2026-09-21">
+<meta name="app-version" content="v30-2026-09-21">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -328,7 +338,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v29 &bull; 21/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v30 &bull; 21/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -465,9 +475,8 @@
 
 <script>
 // ===================== CONFIGURATION =====================
-// Code à définir toi-même avant la mise en ligne (protège l'enregistrement des recettes).
-// Doit être identique à la variable RECETTES_CODE côté serveur (functions/api/data.js).
-const RECETTES_CODE = "RECETTES_CODE_2026_09_05_05:17";
+// (v30) Le code secret d'enregistrement n'est plus écrit ici : il est connu
+// uniquement du serveur (variable RECETTES_ADMIN_CODE côté Cloudflare).
 
 // Adresse de la base vivante des aliments/IG, partagée avec gestion-aliments-ig.html
 // (même dépôt/déploiement recettes-igbas.pages.dev, backend Cloudflare KV via functions/api/aliments.js).
@@ -483,18 +492,40 @@ const DISCLAIMER_TXT = "Cette recette est le fruit d'une interprétation personn
 // "Importer un lot (PDF)", "Modifier"/"Supprimer" une recette, ni à
 // l'étiquette de version — ces éléments sont retirés de la page, pas
 // seulement cachés visuellement. Pour les débloquer sur un appareil, on
-// ouvre une seule fois un lien de la forme :
-//   https://recettes-igbas.pages.dev/?admin=RECETTES_CODE_2026_09_05_05:17
-// Le code est mémorisé ensuite sur cet appareil (localStorage), plus besoin
-// de le retaper. Même code que RECETTES_CODE, pour n'avoir qu'un seul code
-// à retenir.
+// ouvre UNE SEULE FOIS un lien de la forme :
+//   https://recettes-igbas.pages.dev/?admin=LECODE
+// (v30) Le code n'est plus écrit dans ce fichier : le serveur le vérifie,
+// l'appareil le mémorise (localStorage), et il est effacé de la barre
+// d'adresse aussitôt.
+var modeAdmin = false;
+function codeAdminMemorise(){
+  try{ return localStorage.getItem('recettes_admin_code') || ''; }catch(e){ return ''; }
+}
 (function initModeAdmin(){
   const params = new URLSearchParams(window.location.search);
   const codeFourni = params.get('admin');
-  if(codeFourni === RECETTES_CODE){
-    localStorage.setItem('recettes_admin_ok', 'true');
+  if(codeFourni){
+    // On retire le code de l'adresse tout de suite, avant toute autre chose.
+    params.delete('admin');
+    const reste = params.toString();
+    try{ history.replaceState(null, '', window.location.pathname + (reste ? '?' + reste : '')); }catch(e){}
+    fetch('/api/data', { method:'POST', headers:{'X-Recettes-Code': codeFourni, 'X-Recettes-Verif': '1'} })
+      .then(function(r){
+        if(r.ok){
+          try{
+            localStorage.setItem('recettes_admin_code', codeFourni);
+            localStorage.setItem('recettes_admin_ok', 'true');
+          }catch(e){}
+          window.location.reload();
+        }else{
+          alert("Code incorrect : l'accès administrateur n'a pas été activé sur cet appareil.");
+        }
+      })
+      .catch(function(){
+        alert("Impossible de vérifier le code pour le moment (connexion ?). Réessaie dans un instant.");
+      });
   }
-  modeAdmin = localStorage.getItem('recettes_admin_ok') === 'true';
+  modeAdmin = (localStorage.getItem('recettes_admin_ok') === 'true') && codeAdminMemorise() !== '';
   if(!modeAdmin){
     document.querySelectorAll('.admin-only').forEach(el => el.remove());
   }
@@ -510,6 +541,7 @@ let currentCat = "Toutes";
 let currentSousCat = "Toutes";
 let currentRecetteId = null;
 let editingId = null;
+let echecCodeRefuse = false;
 
 // ===================== CHARGEMENT =====================
 async function loadData(){
@@ -538,17 +570,18 @@ async function persist(){
     console.warn('Copie locale impossible (quota du navigateur dépassé) — sans conséquence pour l\'enregistrement en ligne.');
   }
   let ok = true;
+  echecCodeRefuse = false;
   try{
     const controleur = new AbortController();
     const limite = setTimeout(() => controleur.abort(), 20000);
     const reponse = await fetch('/api/data', {
       method:'POST',
-      headers:{'Content-Type':'application/json','X-Recettes-Code':RECETTES_CODE},
+      headers:{'Content-Type':'application/json','X-Recettes-Code':codeAdminMemorise()},
       body: JSON.stringify(D),
       signal: controleur.signal
     });
     clearTimeout(limite);
-    if(!reponse.ok){ ok = false; }
+    if(!reponse.ok){ ok = false; echecCodeRefuse = (reponse.status === 401); }
   }catch(e){ ok = false; }
   actualiserListesCategories();
   return ok;
@@ -1210,6 +1243,10 @@ async function saveRecette(){
   let sauvegardeOk = false;
   try{ sauvegardeOk = await persist(); }catch(e){ sauvegardeOk = false; }
   if(boutonEnregistrer){ boutonEnregistrer.textContent = texteBoutonInitial; boutonEnregistrer.disabled = false; }
+  if(!sauvegardeOk && echecCodeRefuse){
+    msg.innerHTML = '<div class="msg err">⚠ Le code d\'accès a été refusé par le serveur. Rouvre ton lien d\'accès administrateur (celui qui se termine par ?admin=…) puis réessaie. Rien n\'est perdu sur cet écran.</div>';
+    return;
+  }
   if(!sauvegardeOk){
     msg.innerHTML = '<div class="msg err">⚠ L\'enregistrement en ligne a échoué ou a pris trop de temps. Rien n\'est perdu sur cet écran, mais réessaie avant de quitter.</div>';
     return;
