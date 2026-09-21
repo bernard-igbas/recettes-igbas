@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v30 — 21/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v31 — 21/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -112,9 +112,15 @@
       barre d'adresse. Si le serveur refuse un jour le code (changement), un
       message demande de rouvrir le lien d'accès. Les appareils déjà débloqués
       avant la v30 doivent rouvrir le lien une fois. Nécessite data.js v1.5
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026).
+    - v31 : UNE RECETTE DANS DEUX RUBRIQUES. Nouveau champ facultatif « Aussi
+      classée dans… » (donnée : categorie2) dans le formulaire. La recette reste UNE
+      seule fiche (une seule photo, une seule version à corriger) mais apparaît dans
+      les deux rubriques du catalogue, avec les compteurs à jour. Dans la 2e rubrique,
+      elle est rangée sous « Autres » (la sous-catégorie ne s'applique qu'à la rubrique
+      principale). Les recettes existantes ne sont pas modifiées (champ absent = aucune)
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026).
 -->
-<meta name="app-version" content="v30-2026-09-21">
+<meta name="app-version" content="v31-2026-09-21">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -338,7 +344,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v30 &bull; 21/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v31 &bull; 21/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -401,6 +407,12 @@
             <option value="">(aucune)</option>
           </select>
         </div>
+      </div>
+      <div class="field">
+        <label>Aussi classée dans… (optionnel)</label>
+        <select id="fCategorie2">
+          <option value="">(aucune)</option>
+        </select>
       </div>
       <div class="field" style="margin-top:-8px;margin-bottom:14px;">
         <span class="save-note" style="margin:0;">Catégorie ou sous-catégorie manquante ? Choisis « ➕ Nouvelle… » tout en bas de chaque liste.</span>
@@ -600,7 +612,7 @@ const OPTION_NOUVELLE_SOUSCAT = '➕ Nouvelle sous-catégorie…';
 
 function actualiserListesCategories(){
   // Catégories : les 5 de base + toutes celles déjà utilisées dans les recettes, sans doublon.
-  const categoriesUtilisees = [...new Set((D.recettes||[]).map(r => r.categorie).filter(Boolean))];
+  const categoriesUtilisees = [...new Set((D.recettes||[]).flatMap(r => [r.categorie, r.categorie2]).filter(Boolean))];
   const toutesCategories = [...new Set([...CATEGORIES_BASE, ...categoriesUtilisees])];
 
   const selectCat = document.getElementById('fCategorie');
@@ -608,6 +620,15 @@ function actualiserListesCategories(){
   selectCat.innerHTML = toutesCategories.map(c => `<option>${escapeHtml(c)}</option>`).join('')
     + `<option value="${OPTION_NOUVELLE_CAT}">${OPTION_NOUVELLE_CAT}</option>`;
   if(toutesCategories.includes(valeurCatActuelle)){ selectCat.value = valeurCatActuelle; }
+
+  // v31 — liste « Aussi classée dans… » : les mêmes catégories, plus « (aucune) ».
+  const selectCat2 = document.getElementById('fCategorie2');
+  if(selectCat2){
+    const valeurCat2Actuelle = selectCat2.value;
+    selectCat2.innerHTML = '<option value="">(aucune)</option>'
+      + toutesCategories.map(c => `<option>${escapeHtml(c)}</option>`).join('');
+    if(valeurCat2Actuelle && toutesCategories.includes(valeurCat2Actuelle)){ selectCat2.value = valeurCat2Actuelle; }
+  }
 
   // Sous-catégories : les 5 connues de la structure de dossiers + celles déjà utilisées, sans doublon.
   const sousCategoriesUtilisees = [...new Set((D.recettes||[]).map(r => r.sousCategorie).filter(Boolean))];
@@ -630,6 +651,18 @@ function ajouterOptionSiAbsente(select, valeur, optionSentinelle){
     select.insertBefore(nouvelleOption, select.querySelector(`option[value="${optionSentinelle}"]`));
   }
   select.value = valeur;
+}
+
+// v31 — règle la liste « Aussi classée dans… » (ajoute l'option si elle manque).
+function definirCategorie2(valeur){
+  const sel = document.getElementById('fCategorie2');
+  if(!sel) return;
+  if(valeur && ![...sel.options].some(o => o.value === valeur)){
+    const o = document.createElement('option');
+    o.value = valeur; o.textContent = valeur;
+    sel.appendChild(o);
+  }
+  sel.value = valeur || '';
 }
 
 function gererChangementCategorie(){
@@ -728,6 +761,7 @@ function chargerRecetteImport(i){
   document.getElementById('fTitre').value = r.titre || '';
   document.getElementById('fCategorie').value = r.categorie || 'Entrées';
   document.getElementById('fSousCategorie').value = r.sousCategorie || '';
+  definirCategorie2(r.categorie2 || '');
   document.getElementById('fNiveau').value = r.niveau || 'Simple';
   document.getElementById('fClassification').value = r.classification || 'IG BAS - PL';
   document.getElementById('fPersonnes').value = r.personnes || '';
@@ -828,12 +862,12 @@ function renderCatBar(q){
   // v18 — la barre n'est plus figée aux 5 catégories de base : toute
   // catégorie créée via "➕ Nouvelle catégorie…" (ex. "Encas") apparaît
   // ici aussi comme bouton de filtre, pas seulement dans le formulaire.
-  const categoriesUtilisees = [...new Set(D.recettes.map(r => r.categorie).filter(Boolean))];
+  const categoriesUtilisees = [...new Set(D.recettes.flatMap(r => [r.categorie, r.categorie2]).filter(Boolean))];
   const toutesCategories = [...new Set([...CATEGORIES_BASE, ...categoriesUtilisees])];
   const cats = ['Toutes', ...toutesCategories];
 
   bar.innerHTML = cats.map(c=>{
-    const n = c==='Toutes' ? base.length : base.filter(r=>r.categorie===c).length;
+    const n = c==='Toutes' ? base.length : base.filter(r=>r.categorie===c || r.categorie2===c).length;
     return `<button class="cat-btn ${c===currentCat?'active':''}" onclick="setCat('${escapeAttr(c)}')">${escapeHtml(c)} (${n})</button>`;
   }).join('');
 }
@@ -844,7 +878,7 @@ function renderCatalogue(){
   const q = (document.getElementById('searchBox').value||'').toLowerCase().trim();
   renderCatBar(q);
   let list = D.recettes.slice().sort((a,b) => a.titre.localeCompare(b.titre, 'fr'));
-  if(currentCat!=='Toutes') list = list.filter(r=>r.categorie===currentCat);
+  if(currentCat!=='Toutes') list = list.filter(r=>r.categorie===currentCat || r.categorie2===currentCat);
   if(q) list = list.filter(r=>r.titre.toLowerCase().includes(q));
   const grid = document.getElementById('cardGrid');
   const sousCatBar = document.getElementById('sousCatBar');
@@ -855,7 +889,7 @@ function renderCatalogue(){
       <div class="fiche-num">${estNouveau(r)?'<span class="badge-new">Nouveau</span>':''}</div>
       <h3>${escapeHtml(r.titre)}</h3>
       <div class="meta">
-        <span>${escapeHtml(r.categorie)}</span>
+        <span>${escapeHtml(r.categorie)}${r.categorie2 ? ' / ' + escapeHtml(r.categorie2) : ''}</span>
         <span>${escapeHtml(r.personnes||'')} pers.</span>
         <span class="ig-pill ${igCls(ig)}">${igLabel(ig)}</span>
       </div>
@@ -866,8 +900,10 @@ function renderCatalogue(){
   // sélectionnée (pas "Toutes") ET qu'au moins 2 sous-catégories différentes existent
   // parmi les recettes affichées. On ne montre alors QUE la sous-catégorie choisie
   // (jamais tout d'un coup), pour éviter une liste interminable.
-  const sousCategoriesPresentes = [...new Set(list.map(r => r.sousCategorie).filter(Boolean))];
-  const sansSousCat = list.filter(r => !r.sousCategorie);
+  // v31 — dans la 2e rubrique d'une recette, la sous-catégorie ne s'applique pas (rangée sous « Autres »).
+  const sousCatDe = r => (r.categorie === currentCat ? (r.sousCategorie || '') : '');
+  const sousCategoriesPresentes = [...new Set(list.map(sousCatDe).filter(Boolean))];
+  const sansSousCat = list.filter(r => !sousCatDe(r));
 
   if(currentCat !== 'Toutes' && sousCategoriesPresentes.length >= 2){
     if(currentSousCat === 'Toutes' || (!sousCategoriesPresentes.includes(currentSousCat) && currentSousCat !== '__autres__')){
@@ -876,7 +912,7 @@ function renderCatalogue(){
 
     let pillsHtml = '';
     sousCategoriesPresentes.forEach(sc => {
-      const n = list.filter(r=>r.sousCategorie===sc).length;
+      const n = list.filter(r=>sousCatDe(r)===sc).length;
       pillsHtml += `<button class="souscat-btn ${sc===currentSousCat?'active':''}" onclick="setSousCat('${escapeAttr(sc)}')">${escapeHtml(sc)} (${n})</button>`;
     });
     if(sansSousCat.length){
@@ -884,7 +920,7 @@ function renderCatalogue(){
     }
     sousCatBar.innerHTML = pillsHtml;
 
-    const listeAffichee = currentSousCat === '__autres__' ? sansSousCat : list.filter(r => r.sousCategorie === currentSousCat);
+    const listeAffichee = currentSousCat === '__autres__' ? sansSousCat : list.filter(r => sousCatDe(r) === currentSousCat);
     grid.innerHTML = listeAffichee.map(carteHtml).join('');
     document.getElementById('emptyMsg').style.display = listeAffichee.length? 'none':'block';
   }else{
@@ -910,7 +946,7 @@ function openDetail(id){
       <div class="hero">
         <div class="hero-top">
           <div class="hero-text">
-            <span class="hero-tag">${escapeHtml(r.categorie)}${r.sousCategorie? ' · '+escapeHtml(r.sousCategorie):''}</span>
+            <span class="hero-tag">${escapeHtml(r.categorie)}${r.sousCategorie? ' · '+escapeHtml(r.sousCategorie):''}${r.categorie2 ? ' — aussi : '+escapeHtml(r.categorie2) : ''}</span>
             <h2>${escapeHtml(r.titre)}</h2>
           </div>
           ${r.photo? `<div class="hero-photo-cadre"><img class="hero-photo" src="${r.photo}"></div>` : ''}
@@ -1012,6 +1048,7 @@ function editRecette(id){
   document.getElementById('fTitre').value = r.titre || '';
   document.getElementById('fCategorie').value = r.categorie || 'Plats';
   document.getElementById('fSousCategorie').value = r.sousCategorie || '';
+  definirCategorie2(r.categorie2 || '');
   document.getElementById('fNiveau').value = r.niveau || 'Simple';
   document.getElementById('fClassification').value = r.classification || 'IG BAS - PL';
   document.getElementById('fPersonnes').value = r.personnes || '';
@@ -1034,6 +1071,7 @@ function resetForm(){
   document.querySelector('.form-title').textContent = 'Ajouter une recette';
   document.getElementById('fTitre').value='';
   document.getElementById('fSousCategorie').value='';
+  definirCategorie2('');
   document.getElementById('fPersonnes').value='';
   document.getElementById('fTemps').value='';
   document.getElementById('fRemarque').value='';
@@ -1201,6 +1239,7 @@ async function saveRecette(){
     titre,
     categorie: document.getElementById('fCategorie').value,
     sousCategorie: document.getElementById('fSousCategorie').value.trim(),
+    categorie2: (document.getElementById('fCategorie2').value === document.getElementById('fCategorie').value) ? '' : document.getElementById('fCategorie2').value,
     niveau: document.getElementById('fNiveau').value,
     classification: document.getElementById('fClassification').value,
     personnes: document.getElementById('fPersonnes').value.trim(),
