@@ -1,7 +1,15 @@
 // ============================================================
-// recettes-igbas (data.js) — v1.6 — 21/09/2026 — Validé par Bernard
+// recettes-igbas (data.js) — v1.7 — 21/09/2026 — Validé par Bernard : EN ATTENTE
 // ------------------------------------------------------------
 // CHANGELOG
+//  v1.7 (21/09/2026) : ALLÈGEMENT du travail du serveur (la base grossit avec les
+//    photos, et Cloudflare limite le temps de calcul par requête : constaté le
+//    21/09/2026 à 17h30, une lecture avait échoué chez Bernard).
+//    - Lecture : la base est renvoyée telle quelle, sans être décodée puis
+//      ré-encodée (travail divisé par deux environ).
+//    - Enregistrement : le nombre de recettes de l'ancienne version est compté
+//      par une simple recherche de texte au lieu de décoder toute l'ancienne base.
+//      Même règle de garde-fou (plus de 5 recettes en moins = refus).
 //  v1.6 (21/09/2026) : SÉCURITÉ DES DONNÉES
 //    - Sauvegardes automatiques : avant d'écraser la base, le serveur en
 //      garde une copie — une par heure (conservée 48 h) et une par jour
@@ -47,6 +55,20 @@ function messageErreur(e) {
   return String((e && e.message) || e);
 }
 
+// Compte les recettes par simple recherche de texte (une recette = un "titre":"…").
+// Beaucoup plus léger que de décoder toute la base. Utilisé identiquement pour
+// l'ancienne et la nouvelle version, donc la comparaison reste juste.
+function compterRecettes(brut) {
+  const motif = '"titre":"';
+  let n = 0;
+  let i = 0;
+  while ((i = brut.indexOf(motif, i)) !== -1) {
+    n++;
+    i += motif.length;
+  }
+  return n;
+}
+
 function reponseJson(objet, statut) {
   return new Response(JSON.stringify(objet), {
     status: statut || 200,
@@ -86,9 +108,8 @@ export async function onRequestGet(context) {
   const { env } = context;
   try {
     const raw = await env.RECETTES_KV.get(KV_KEY);
-    const data = raw ? JSON.parse(raw) : { recettes: [] };
-    return new Response(JSON.stringify(data), {
-      headers: { "Content-Type": "application/json" }
+    return new Response(raw || '{"recettes":[]}', {
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
     });
   } catch (e) {
     return reponseJson({ error: "Lecture impossible", detail: messageErreur(e) }, 500);
@@ -132,16 +153,13 @@ export async function onRequestPost(context) {
     if (precedent) {
       // --- Garde-fou contre l'effacement ---
       if (!forcer) {
-        let nbPrecedent = null;
-        try {
-          const p = JSON.parse(precedent);
-          if (p && Array.isArray(p.recettes)) nbPrecedent = p.recettes.length;
-        } catch (e) { nbPrecedent = null; }
+        const nbPrecedent = compterRecettes(precedent);
+        const nbNouveauTexte = compterRecettes(body);
 
-        if (nbPrecedent !== null && (nbPrecedent - nbNouveau) > MAX_BAISSE_RECETTES) {
+        if ((nbPrecedent - nbNouveauTexte) > MAX_BAISSE_RECETTES) {
           return reponseJson({
             error: "Enregistrement refusé par sécurité",
-            detail: "Le nombre de recettes passerait de " + nbPrecedent + " à " + nbNouveau
+            detail: "Le nombre de recettes passerait de " + nbPrecedent + " à " + nbNouveauTexte
           }, 409);
         }
         if (precedent.length > POIDS_MINI_CONTROLE && body.length < precedent.length * SEUIL_POIDS) {
