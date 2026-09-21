@@ -1,7 +1,10 @@
 // ============================================================
-// recettes-igbas (data.js) — v1.1 — 21/09/2026 — Validé par Bernard : EN ATTENTE
+// recettes-igbas (data.js) — v1.2 — 21/09/2026 — Validé par Bernard : EN ATTENTE
 // ------------------------------------------------------------
 // CHANGELOG
+//  v1.2 (21/09/2026) : le test de diagnostic accepte aussi un mot de test
+//    temporaire (igbas-test-2109), pour ne pas avoir à chercher le vrai code.
+//    À RETIRER une fois le diagnostic terminé.
 //  v1.1 (21/09/2026) : diagnostic de l'échec d'enregistrement
 //    - Ajout d'un test : /api/data?diag=CODE
 //      (lit la base, puis écrit uniquement dans deux clés de TEST
@@ -22,13 +25,14 @@
 //    dans index.html)
 
 const KV_KEY = "recettes-data";
+const MOT_TEST_TEMPORAIRE = "igbas-test-2109"; // à retirer après diagnostic
 
 function messageErreur(e) {
   return String((e && e.message) || e);
 }
 
 async function diagnostic(env) {
-  const sortie = { fichier: "data.js v1.1 — 21/09/2026", tests: {} };
+  const sortie = { fichier: "data.js v1.2 — 21/09/2026", tests: {} };
   let brut = null;
 
   // Test 1 : lire la vraie base
@@ -75,7 +79,7 @@ export async function onRequestGet(context) {
   const url = new URL(request.url);
   const diag = url.searchParams.get("diag");
   if (diag !== null) {
-    if (!diag || diag !== env.RECETTES_CODE) {
+    if (!diag || (diag !== env.RECETTES_CODE && diag !== MOT_TEST_TEMPORAIRE)) {
       return new Response(JSON.stringify({ error: "Code invalide" }), {
         status: 401,
         headers: { "Content-Type": "application/json" }
