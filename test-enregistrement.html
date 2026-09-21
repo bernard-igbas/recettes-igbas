@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<!--
+  recettes-igbas — test-enregistrement.html — v1.0 — 21/09/2026 — Validé par Bernard : EN ATTENTE
+  CHANGELOG
+   v1.0 (21/09/2026) : page de diagnostic temporaire. Reproduit un enregistrement
+   depuis le navigateur vers /api/data?diag=... (clé de test uniquement, les vraies
+   recettes ne sont jamais modifiées). À SUPPRIMER après diagnostic.
+-->
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test d'enregistrement — recettes-igbas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap">
+<style>
+  :root { --fond:#f8f6f1; --texte:#2b2b2b; --vert:#2f7d5b; --rouge:#b3372f; --gris:#6b6b6b; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px 18px 60px; background:var(--fond); color:var(--texte);
+         font-family:'DM Sans', Arial, sans-serif; font-size:20px; line-height:1.65; }
+  main { max-width:720px; margin:0 auto; }
+  h1 { font-size:28px; margin:0 0 8px; }
+  p.intro { margin:0 0 24px; color:var(--gris); }
+  button { font-family:inherit; font-size:22px; font-weight:700; color:#fff; background:var(--vert);
+           border:0; border-radius:14px; padding:16px 28px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .etape { background:#fff; border-radius:14px; padding:14px 18px; margin:14px 0;
+           box-shadow:0 1px 4px rgba(0,0,0,.08); }
+  .etape b { display:block; font-size:20px; }
+  .ok { color:var(--vert); font-weight:700; }
+  .ko { color:var(--rouge); font-weight:700; }
+  .att { color:var(--gris); }
+  .detail { font-size:18px; color:var(--gris); word-break:break-word; }
+  #bilan { font-size:22px; font-weight:700; margin-top:22px; }
+  footer { margin-top:40px; font-size:16px; color:var(--gris); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Test d'enregistrement</h1>
+  <p class="intro">Ce test simule un enregistrement, mais dans une case de test.
+     Tes vraies recettes ne sont pas touchées.</p>
+
+  <button id="go">Lancer le test</button>
+
+  <div id="resultats"></div>
+  <div id="bilan"></div>
+
+  <footer>recettes-igbas — page de test — v1.0 — 21/09/2026</footer>
+</main>
+
+<script>
+(function () {
+  var MOT = "igbas-test-2109";
+  var ATTENTE_MAX = 60000; // 60 secondes par étape
+  var zone = document.getElementById("resultats");
+  var bilan = document.getElementById("bilan");
+  var bouton = document.getElementById("go");
+
+  function nouvelleEtape(titre) {
+    var d = document.createElement("div");
+    d.className = "etape";
+    d.innerHTML = "<b>" + titre + "</b><span class='att'>en cours…</span>";
+    zone.appendChild(d);
+    return d;
+  }
+  function fin(d, ok, texte, detail) {
+    d.querySelector("span").className = ok ? "ok" : "ko";
+    d.querySelector("span").textContent = (ok ? "✔ " : "✘ ") + texte;
+    if (detail) {
+      var p = document.createElement("div");
+      p.className = "detail";
+      p.textContent = detail;
+      d.appendChild(p);
+    }
+  }
+  function secondes(t0) { return ((Date.now() - t0) / 1000).toFixed(1) + " s"; }
+
+  // fetch avec limite de temps
+  function appel(url, options) {
+    var ctrl = new AbortController();
+    var minuteur = setTimeout(function () { ctrl.abort(); }, ATTENTE_MAX);
+    options = options || {};
+    options.signal = ctrl.signal;
+    options.cache = "no-store";
+    return fetch(url, options).then(function (r) {
+      return r.text().then(function (t) { clearTimeout(minuteur); return { r: r, t: t }; });
+    }, function (e) { clearTimeout(minuteur); throw e; });
+  }
+  function erreurLisible(e) {
+    if (e && e.name === "AbortError") return "Pas de réponse après 60 secondes";
+    return String((e && e.message) || e);
+  }
+
+  async function lancer() {
+    bouton.disabled = true;
+    zone.innerHTML = ""; bilan.textContent = "";
+    var reussites = 0, corps = null;
+
+    // Étape 1 : lire la base
+    var e1 = nouvelleEtape("1. Lire tes recettes");
+    var t0 = Date.now();
+    try {
+      var a = await appel("/api/data");
+      if (!a.r.ok) throw new Error("Réponse " + a.r.status);
+      corps = a.t;
+      fin(e1, true, "OK en " + secondes(t0), (corps.length / 1048576).toFixed(2) + " Mo reçus");
+      reussites++;
+    } catch (e) { fin(e1, false, "Échec après " + secondes(t0), erreurLisible(e)); }
+
+    // Étape 2 : envoyer un tout petit message
+    var e2 = nouvelleEtape("2. Envoyer un petit message de test");
+    t0 = Date.now();
+    try {
+      var b = await appel("/api/data?diag=" + MOT, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recettes: [] })
+      });
+      if (!b.r.ok) throw new Error("Réponse " + b.r.status + " : " + b.t.slice(0, 200));
+      fin(e2, true, "OK en " + secondes(t0));
+      reussites++;
+    } catch (e) { fin(e2, false, "Échec après " + secondes(t0), erreurLisible(e)); }
+
+    // Étape 3 : envoyer la copie complète des recettes
+    var e3 = nouvelleEtape("3. Envoyer une copie complète de tes recettes");
+    if (corps === null) {
+      fin(e3, false, "Non testé", "L'étape 1 n'a pas fonctionné.");
+    } else {
+      t0 = Date.now();
+      try {
+        var c = await appel("/api/data?diag=" + MOT, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: corps
+        });
+        if (!c.r.ok) throw new Error("Réponse " + c.r.status + " : " + c.t.slice(0, 200));
+        fin(e3, true, "OK en " + secondes(t0), c.t.slice(0, 200));
+        reussites++;
+      } catch (e) { fin(e3, false, "Échec après " + secondes(t0), erreurLisible(e)); }
+    }
+
+    bilan.textContent = reussites === 3
+      ? "Les 3 étapes ont réussi."
+      : reussites + " étape(s) sur 3 ont réussi. Fais une capture d'écran de cette page.";
+    bilan.style.color = reussites === 3 ? "var(--vert)" : "var(--rouge)";
+    bouton.disabled = false;
+  }
+
+  bouton.addEventListener("click", lancer);
+})();
+</script>
+</body>
+</html>
