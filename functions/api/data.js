@@ -1,14 +1,17 @@
 // ============================================================
-// recettes-igbas (data.js) — v1.4 — 21/09/2026 — Validé par Bernard : EN ATTENTE
+// recettes-igbas (data.js) — v1.5 — 21/09/2026 — Validé par Bernard : EN ATTENTE
 // ------------------------------------------------------------
 // CHANGELOG
-//  v1.4 (21/09/2026) : nettoyage après diagnostic — retrait du test
-//    /api/data?diag=... et du mot de test temporaire (igbas-test-2109).
-//    Conservé : le champ "detail" (vraie cause) dans la réponse d'échec
-//    d'un enregistrement.
-//  v1.3 (21/09/2026) : test d'envoi de diagnostic (retiré en v1.4)
-//  v1.2 (21/09/2026) : mot de test temporaire (retiré en v1.4)
-//  v1.1 (21/09/2026) : test de diagnostic + champ "detail" sur les échecs
+//  v1.5 (21/09/2026) : SÉCURITÉ — le code secret n'est plus partagé avec la
+//    page publique. Il est lu dans une variable Cloudflare dédiée :
+//    RECETTES_ADMIN_CODE. Ajout d'une "vérification d'accès" (en-tête
+//    X-Recettes-Verif: 1) : le serveur confirme si le code est bon SANS rien
+//    enregistrer, pour activer l'accès administrateur d'un appareil.
+//    Si la variable est absente, message explicite (erreur 500).
+//    Inclut le nettoyage de la v1.4 (plus de test de diagnostic).
+//    Nécessite index.html v30.
+//  v1.4 (21/09/2026) : retrait du test de diagnostic et du mot temporaire
+//  v1.3 / v1.2 / v1.1 (21/09/2026) : versions de diagnostic (retirées)
 //  v1.0 : version d'origine (sans numéro)
 // ============================================================
 // functions/api/data.js
@@ -18,13 +21,21 @@
 //
 // Nécessite, côté Cloudflare Pages :
 //  - un namespace KV lié à ce projet avec le binding "RECETTES_KV"
-//  - une variable d'environnement "RECETTES_CODE" (même valeur que RECETTES_CODE
-//    dans index.html)
+//  - une variable d'environnement "RECETTES_ADMIN_CODE" : le code secret,
+//    connu uniquement de Bernard, Marie-Laure et du serveur
+//    (il n'est écrit dans aucun fichier)
 
 const KV_KEY = "recettes-data";
 
 function messageErreur(e) {
   return String((e && e.message) || e);
+}
+
+function reponseJson(objet, statut) {
+  return new Response(JSON.stringify(objet), {
+    status: statut || 200,
+    headers: { "Content-Type": "application/json" }
+  });
 }
 
 export async function onRequestGet(context) {
@@ -44,13 +55,25 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const code = request.headers.get("X-Recettes-Code");
-  if (!code || code !== env.RECETTES_CODE) {
-    return new Response(JSON.stringify({ error: "Code invalide" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" }
-    });
+
+  const attendu = env.RECETTES_ADMIN_CODE;
+  if (!attendu) {
+    return reponseJson({
+      error: "Configuration incomplète",
+      detail: "La variable RECETTES_ADMIN_CODE est absente côté Cloudflare"
+    }, 500);
   }
+
+  const code = request.headers.get("X-Recettes-Code");
+  if (!code || code !== attendu) {
+    return reponseJson({ error: "Code invalide" }, 401);
+  }
+
+  // Simple vérification d'accès : le code est bon, on ne modifie rien.
+  if (request.headers.get("X-Recettes-Verif") === "1") {
+    return reponseJson({ ok: true, verifie: true });
+  }
+
   try {
     const body = await request.text();
     // Validation minimale : le corps doit être un JSON valide avec une clé "recettes"
@@ -59,16 +82,11 @@ export async function onRequestPost(context) {
       throw new Error("Format invalide");
     }
     await env.RECETTES_KV.put(KV_KEY, JSON.stringify(parsed));
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { "Content-Type": "application/json" }
-    });
+    return reponseJson({ ok: true });
   } catch (e) {
-    return new Response(JSON.stringify({
+    return reponseJson({
       error: "Échec de l'enregistrement",
       detail: messageErreur(e)
-    }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" }
-    });
+    }, 400);
   }
 }
