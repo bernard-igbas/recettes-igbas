@@ -1,17 +1,23 @@
 // ============================================================
-// recettes-igbas (data.js) — v1.5 — 21/09/2026 — Validé par Bernard : EN ATTENTE
+// recettes-igbas (data.js) — v1.6 — 21/09/2026 — Validé par Bernard : EN ATTENTE
 // ------------------------------------------------------------
 // CHANGELOG
-//  v1.5 (21/09/2026) : SÉCURITÉ — le code secret n'est plus partagé avec la
-//    page publique. Il est lu dans une variable Cloudflare dédiée :
-//    RECETTES_ADMIN_CODE. Ajout d'une "vérification d'accès" (en-tête
-//    X-Recettes-Verif: 1) : le serveur confirme si le code est bon SANS rien
-//    enregistrer, pour activer l'accès administrateur d'un appareil.
-//    Si la variable est absente, message explicite (erreur 500).
-//    Inclut le nettoyage de la v1.4 (plus de test de diagnostic).
-//    Nécessite index.html v30.
-//  v1.4 (21/09/2026) : retrait du test de diagnostic et du mot temporaire
-//  v1.3 / v1.2 / v1.1 (21/09/2026) : versions de diagnostic (retirées)
+//  v1.6 (21/09/2026) : SÉCURITÉ DES DONNÉES
+//    - Sauvegardes automatiques : avant d'écraser la base, le serveur en
+//      garde une copie — une par heure (conservée 48 h) et une par jour
+//      (conservée 30 jours). Clés : "sauvegarde-heure-AAAA-MM-JJTHH" et
+//      "sauvegarde-jour-AAAA-MM-JJ" (+ petit repère "sauvegardes-index").
+//    - Garde-fou : un enregistrement est REFUSÉ (erreur 409) s'il ferait
+//      disparaître plus de 5 recettes d'un coup, ou si la base perdait plus
+//      de 30 % de son poids. Contournable volontairement avec l'en-tête
+//      X-Recettes-Forcer: 1 (jamais envoyé par l'appli).
+//    - Lecture : en cas d'erreur du serveur, la réponse est maintenant une
+//      vraie erreur (500) au lieu d'une liste vide qui pouvait faire croire
+//      à une base vide.
+//    - La base est enregistrée telle que reçue (plus de re-conversion).
+//  v1.5 (21/09/2026) : code secret dans la variable RECETTES_ADMIN_CODE +
+//    vérification d'accès (X-Recettes-Verif)
+//  v1.4 / v1.3 / v1.2 / v1.1 (21/09/2026) : diagnostic et nettoyage
 //  v1.0 : version d'origine (sans numéro)
 // ============================================================
 // functions/api/data.js
@@ -26,6 +32,16 @@
 //    (il n'est écrit dans aucun fichier)
 
 const KV_KEY = "recettes-data";
+const KV_INDEX = "sauvegardes-index";
+
+// Garde-fou
+const MAX_BAISSE_RECETTES = 5;   // plus de 5 recettes en moins d'un coup = refus
+const SEUIL_POIDS = 0.7;         // base réduite à moins de 70 % de son poids = refus
+const POIDS_MINI_CONTROLE = 200000; // le contrôle de poids ne s'applique qu'aux bases > 200 000 caractères
+
+// Durées de conservation des sauvegardes (en secondes)
+const TTL_HEURE = 48 * 3600;
+const TTL_JOUR = 30 * 24 * 3600;
 
 function messageErreur(e) {
   return String((e && e.message) || e);
@@ -38,6 +54,34 @@ function reponseJson(objet, statut) {
   });
 }
 
+// Copie la version actuelle (avant écrasement) : une fois par heure et une fois par jour.
+async function sauvegarderAvant(env, brutPrecedent) {
+  const iso = new Date().toISOString();
+  const jour = iso.slice(0, 10);   // ex. 2026-09-21
+  const heure = iso.slice(0, 13);  // ex. 2026-09-21T10
+
+  let index = {};
+  try {
+    const brutIndex = await env.RECETTES_KV.get(KV_INDEX);
+    if (brutIndex) index = JSON.parse(brutIndex) || {};
+  } catch (e) { index = {}; }
+
+  let modifie = false;
+  if (index.jour !== jour) {
+    await env.RECETTES_KV.put("sauvegarde-jour-" + jour, brutPrecedent, { expirationTtl: TTL_JOUR });
+    index.jour = jour;
+    modifie = true;
+  }
+  if (index.heure !== heure) {
+    await env.RECETTES_KV.put("sauvegarde-heure-" + heure, brutPrecedent, { expirationTtl: TTL_HEURE });
+    index.heure = heure;
+    modifie = true;
+  }
+  if (modifie) {
+    await env.RECETTES_KV.put(KV_INDEX, JSON.stringify(index));
+  }
+}
+
 export async function onRequestGet(context) {
   const { env } = context;
   try {
@@ -47,9 +91,7 @@ export async function onRequestGet(context) {
       headers: { "Content-Type": "application/json" }
     });
   } catch (e) {
-    return new Response(JSON.stringify({ recettes: [] }), {
-      headers: { "Content-Type": "application/json" }
-    });
+    return reponseJson({ error: "Lecture impossible", detail: messageErreur(e) }, 500);
   }
 }
 
@@ -81,8 +123,46 @@ export async function onRequestPost(context) {
     if (!parsed || !Array.isArray(parsed.recettes)) {
       throw new Error("Format invalide");
     }
-    await env.RECETTES_KV.put(KV_KEY, JSON.stringify(parsed));
-    return reponseJson({ ok: true });
+    const nbNouveau = parsed.recettes.length;
+    const forcer = request.headers.get("X-Recettes-Forcer") === "1";
+
+    let sauvegardeOk = null;
+    const precedent = await env.RECETTES_KV.get(KV_KEY);
+
+    if (precedent) {
+      // --- Garde-fou contre l'effacement ---
+      if (!forcer) {
+        let nbPrecedent = null;
+        try {
+          const p = JSON.parse(precedent);
+          if (p && Array.isArray(p.recettes)) nbPrecedent = p.recettes.length;
+        } catch (e) { nbPrecedent = null; }
+
+        if (nbPrecedent !== null && (nbPrecedent - nbNouveau) > MAX_BAISSE_RECETTES) {
+          return reponseJson({
+            error: "Enregistrement refusé par sécurité",
+            detail: "Le nombre de recettes passerait de " + nbPrecedent + " à " + nbNouveau
+          }, 409);
+        }
+        if (precedent.length > POIDS_MINI_CONTROLE && body.length < precedent.length * SEUIL_POIDS) {
+          return reponseJson({
+            error: "Enregistrement refusé par sécurité",
+            detail: "La base perdrait plus de 30 % de son poids (" + precedent.length + " → " + body.length + " caractères)"
+          }, 409);
+        }
+      }
+
+      // --- Sauvegarde automatique de la version actuelle (n'empêche jamais l'enregistrement) ---
+      try {
+        await sauvegarderAvant(env, precedent);
+        sauvegardeOk = true;
+      } catch (e) {
+        sauvegardeOk = false;
+      }
+    }
+
+    await env.RECETTES_KV.put(KV_KEY, body);
+    return reponseJson({ ok: true, sauvegarde: sauvegardeOk });
   } catch (e) {
     return reponseJson({
       error: "Échec de l'enregistrement",
