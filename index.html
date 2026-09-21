@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v27 — 20/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v29 — 21/09/2026 — Validé par Bernard
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -88,9 +88,23 @@
       (blocage de plusieurs minutes malgré une connexion fibre stable). La
       limite de 10 secondes couvre désormais l'opération complète, lecture
       du contenu incluse
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026).
+    - v28 (20/09/2026, non conservée) : minuterie de sécurité de 25 secondes
+      sur le bouton "Enregistrer" ; retirée au retour à la v27, rendue inutile
+      par la vraie correction ci-dessous
+    - v29 : LA VRAIE CAUSE des enregistrements qui restaient bloqués (constatée
+      le 21/09/2026 après diagnostic : serveur, stockage Cloudflare et envoi
+      complet de la base testés OK). À chaque enregistrement, la base entière
+      (2,6 Mo avec les photos) était d'abord recopiée dans le stockage local du
+      navigateur (localStorage, limité à environ 5 Mo). Cette copie dépassait le
+      quota : le navigateur refusait, l'erreur n'était pas interceptée, et
+      l'envoi au serveur n'était jamais tenté ni signalé — d'où le bouton figé
+      sur "Enregistrement…". Correctif : cette copie locale (simple confort
+      hors-ligne) est désormais tentée sans jamais bloquer l'envoi au serveur ;
+      l'enregistrement est de plus protégé pour que le bouton se libère
+      toujours, avec un message clair
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026).
 -->
-<meta name="app-version" content="v27-2026-09-20">
+<meta name="app-version" content="v29-2026-09-21">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -314,7 +328,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v27 &bull; 20/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v29 &bull; 21/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -514,7 +528,15 @@ function fallbackLocal(){
   }catch(e){ D = { recettes: [] }; }
 }
 async function persist(){
-  localStorage.setItem('recettes-igbas-data', JSON.stringify(D));
+  // Copie de secours dans le navigateur (confort hors-ligne uniquement).
+  // Elle peut dépasser le quota du navigateur (environ 5 Mo) quand la base
+  // grossit : dans ce cas on l'ignore, et l'envoi au serveur — qui est le
+  // vrai enregistrement — doit avoir lieu quand même.
+  try{
+    localStorage.setItem('recettes-igbas-data', JSON.stringify(D));
+  }catch(e){
+    console.warn('Copie locale impossible (quota du navigateur dépassé) — sans conséquence pour l\'enregistrement en ligne.');
+  }
   let ok = true;
   try{
     const controleur = new AbortController();
@@ -1185,7 +1207,8 @@ async function saveRecette(){
     });
   }
   D = donneesActuelles;
-  const sauvegardeOk = await persist();
+  let sauvegardeOk = false;
+  try{ sauvegardeOk = await persist(); }catch(e){ sauvegardeOk = false; }
   if(boutonEnregistrer){ boutonEnregistrer.textContent = texteBoutonInitial; boutonEnregistrer.disabled = false; }
   if(!sauvegardeOk){
     msg.innerHTML = '<div class="msg err">⚠ L\'enregistrement en ligne a échoué ou a pris trop de temps. Rien n\'est perdu sur cet écran, mais réessaie avant de quitter.</div>';
