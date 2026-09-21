@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v31 — 21/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v32 — 21/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -118,9 +118,16 @@
       les deux rubriques du catalogue, avec les compteurs à jour. Dans la 2e rubrique,
       elle est rangée sous « Autres » (la sous-catégorie ne s'applique qu'à la rubrique
       principale). Les recettes existantes ne sont pas modifiées (champ absent = aucune)
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026).
+    - v32 : CHARGEMENT PLUS FIABLE. Constaté le 21/09/2026 à 17h30 : la page de
+      Bernard affichait « Aucune recette pour le moment » (la lecture de la base avait
+      échoué un instant, alors que Marie-Laure travaillait normalement). Désormais : si
+      la lecture échoue, l'appli réessaie automatiquement une fois ; si elle échoue
+      encore, elle affiche un message clair (« Impossible de charger les recettes… »)
+      au lieu d'un catalogue vide trompeur, et l'enregistrement/la suppression sont
+      bloqués tant que les recettes ne sont pas chargées. Nécessite data.js v1.7
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026).
 -->
-<meta name="app-version" content="v31-2026-09-21">
+<meta name="app-version" content="v32-2026-09-21">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -344,7 +351,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v31 &bull; 21/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v32 &bull; 21/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -556,14 +563,36 @@ let editingId = null;
 let echecCodeRefuse = false;
 
 // ===================== CHARGEMENT =====================
+let chargementOk = false;
+async function lireRecettesServeur(){
+  const r = await fetch('/api/data', {cache:'no-store'});
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  const donnees = await r.json();
+  if(!donnees || !Array.isArray(donnees.recettes)) throw new Error('Format inattendu');
+  return donnees;
+}
 async function loadData(){
   try{
-    const r = await fetch('/api/data');
-    if(r.ok){ D = await r.json(); }
-  }catch(e){ fallbackLocal(); }
-  if(!D || !D.recettes) fallbackLocal();
+    D = await lireRecettesServeur();
+    chargementOk = true;
+  }catch(e1){
+    // Une seconde tentative après 2 secondes (accroc passager possible).
+    try{
+      await new Promise(res => setTimeout(res, 2000));
+      D = await lireRecettesServeur();
+      chargementOk = true;
+    }catch(e2){
+      chargementOk = false;
+    }
+  }
+  if(!chargementOk){ D = { recettes: [] }; }
   renderCatalogue();
   actualiserListesCategories();
+  if(!chargementOk){
+    const vide = document.getElementById('emptyMsg');
+    vide.style.display = 'block';
+    vide.textContent = "⚠ Impossible de charger les recettes pour le moment. Tes recettes ne sont pas perdues. Recharge la page (Cmd + Maj + R) dans un instant.";
+  }
 }
 function fallbackLocal(){
   try{
@@ -1024,6 +1053,7 @@ async function recupererDonneesFraiches(){
 }
 
 async function supprimerRecette(id){
+  if(!chargementOk){ alert("Les recettes ne sont pas chargées : recharge la page (Cmd + Maj + R) avant de supprimer."); return; }
   const r = D.recettes.find(x=>x.id===id);
   if(!r) return;
   if(!confirm('Supprimer définitivement la recette « ' + r.titre + ' » ? Cette action ne peut pas être annulée.')) return;
@@ -1227,6 +1257,7 @@ function renderSteps(){
 async function saveRecette(){
   const titre = document.getElementById('fTitre').value.trim();
   const msg = document.getElementById('saveMsg');
+  if(!chargementOk){ msg.innerHTML = '<div class="msg err">⚠ Les recettes ne sont pas chargées : recharge la page (Cmd + Maj + R) avant d\'enregistrer.</div>'; return; }
   if(!titre){ msg.innerHTML = '<div class="msg err">Le titre est obligatoire.</div>'; return; }
   if(!currentIngredients.length){ msg.innerHTML = '<div class="msg err">Ajoute au moins un ingrédient.</div>'; return; }
 
