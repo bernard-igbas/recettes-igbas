@@ -1,5 +1,5 @@
 // ============================================================
-// recettes-igbas (data.js) — v1.6 — 21/09/2026 — Validé par Bernard : EN ATTENTE
+// recettes-igbas (data.js) — v1.6 — 21/09/2026 — Validé par Bernard
 // ------------------------------------------------------------
 // CHANGELOG
 //  v1.6 (21/09/2026) : SÉCURITÉ DES DONNÉES
