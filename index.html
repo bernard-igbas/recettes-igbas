@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v34.1 — 22/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v34.2 — 22/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -146,9 +146,14 @@
       serveur pouvait laisser une recette sans photo, sans aucun message d'erreur.
       Désormais chaque lot est réessayé 3 fois, et un enregistrement final de contrôle
       confirme que tout est bien sauvegardé, avec un message clair en cas d'échec
+    - v34.2 (22/09/2026) : CONTRÔLE DES PHOTOS. Nouveau filtre réservé, sous la
+      recherche : « Toutes / Avec photo / Sans photo », pour retrouver en un clic les
+      recettes sans photo parmi les 402, sans avoir à toutes les ouvrir. Le catalogue
+      reste trié alphabétiquement (déjà le cas). Sur chaque carte, une étiquette
+      « Sans photo » apparaît (visible seulement pour Bernard et Marie-Laure)
   Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026), v33 (22/09/2026).
 -->
-<meta name="app-version" content="v34.1-2026-09-22">
+<meta name="app-version" content="v34.2-2026-09-22">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -384,7 +389,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.1 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.2 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -396,6 +401,11 @@
   <!-- ===== VUE CATALOGUE ===== -->
   <div id="viewCatalogue">
     <div class="search-row"><input type="text" id="searchBox" placeholder="🔍 Rechercher une recette..." oninput="renderCatalogue()"></div>
+      <div class="admin-only" id="filtrePhotoRow" style="display:flex;gap:8px;margin:8px 0 4px;">
+        <button class="souscat-btn active" data-val="toutes" onclick="setFiltrePhoto('toutes')">Toutes</button>
+        <button class="souscat-btn" data-val="avec" onclick="setFiltrePhoto('avec')">Avec photo</button>
+        <button class="souscat-btn" data-val="sans" onclick="setFiltrePhoto('sans')">Sans photo</button>
+      </div>
     <div class="cat-bar" id="catBar"></div>
     <div id="sousCatBar" class="pills-souscat"></div>
     <div class="card-grid" id="cardGrid"></div>
@@ -610,6 +620,12 @@ let currentCat = "Toutes";
 let currentSousCat = "Toutes";
 let currentRecetteId = null;
 let editingId = null;
+let filtrePhoto = 'toutes';
+function setFiltrePhoto(v){
+  filtrePhoto = v;
+  document.querySelectorAll('#filtrePhotoRow .souscat-btn').forEach(b => b.classList.toggle('active', b.dataset.val === v));
+  renderCatalogue();
+}
 let echecCodeRefuse = false;
 
 // ===================== CHARGEMENT =====================
@@ -959,13 +975,15 @@ function renderCatalogue(){
   let list = D.recettes.slice().sort((a,b) => a.titre.localeCompare(b.titre, 'fr'));
   if(currentCat!=='Toutes') list = list.filter(r=>r.categorie===currentCat || r.categorie2===currentCat);
   if(q) list = list.filter(r=>r.titre.toLowerCase().includes(q));
+  if(filtrePhoto === 'avec') list = list.filter(r => !!r.photo);
+  if(filtrePhoto === 'sans') list = list.filter(r => !r.photo);
   const grid = document.getElementById('cardGrid');
   const sousCatBar = document.getElementById('sousCatBar');
 
   const carteHtml = r => {
     const ig = igMoyen(r.ingredients);
     return `<div class="rcard" onclick="openDetail('${r.id}')">
-      <div class="fiche-num">${estNouveau(r)?'<span class="badge-new">Nouveau</span>':''}</div>
+      <div class="fiche-num">${estNouveau(r)?'<span class="badge-new">Nouveau</span>':''}${modeAdmin && !r.photo ? '<span class="badge-new" style="background:#b3372f;">Sans photo</span>' : ''}</div>
       <h3>${escapeHtml(r.titre)}</h3>
       <div class="meta">
         <span>${escapeHtml(r.categorie)}${r.categorie2 ? ' / ' + escapeHtml(r.categorie2) : ''}</span>
