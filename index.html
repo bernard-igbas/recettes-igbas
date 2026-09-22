@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v34 — 22/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v34.1 — 22/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -140,9 +140,15 @@
       sans qu'on le voie. Validation avec « Valider le cadrage », ou « Annuler » pour
       choisir une autre photo. Concerne uniquement les nouvelles photos ajoutées ;
       les photos déjà en place ne sont pas concernées
+    - v34.1 (22/09/2026) : CORRECTIF de la bascule des photos. Le bouton « Basculer
+      les anciennes photos » ne vérifiait pas si l'enregistrement de chaque lot avait
+      vraiment réussi (seulement l'absence de coupure réseau) : un refus silencieux du
+      serveur pouvait laisser une recette sans photo, sans aucun message d'erreur.
+      Désormais chaque lot est réessayé 3 fois, et un enregistrement final de contrôle
+      confirme que tout est bien sauvegardé, avec un message clair en cas d'échec
   Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026), v33 (22/09/2026).
 -->
-<meta name="app-version" content="v34-2026-09-22">
+<meta name="app-version" content="v34.1-2026-09-22">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -378,7 +384,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.1 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -1006,7 +1012,7 @@ function renderCatalogue(){
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function escapeAttr(s){ return (s||'').replace(/'/g, "\\'"); }
+function escapeAttr(s){ return (s||'').replace(/'/g, "\'"); }
 
 // ===================== FICHE DÉTAIL =====================
 function openDetail(id){
@@ -1398,8 +1404,21 @@ async function basculerAnciennesPhotos(){
   if(aTraiter.length === 0){ alert('Aucune photo à basculer : elles sont déjà toutes dans leur propre rangement.'); return; }
   if(!confirm(aTraiter.length + ' photo(s) à basculer. Ça peut prendre plusieurs minutes. Continuer ?')) return;
 
+  // v34.1 — enregistre un lot, en vérifiant VRAIMENT le résultat (pas seulement
+  // l'absence de coupure réseau) et en réessayant 3 fois avant d'abandonner.
+  async function enregistrerAvecRelances(){
+    for(let essai = 1; essai <= 3; essai++){
+      try{
+        const rep = await fetch('/api/data', { method:'POST', headers:{'Content-Type':'application/json','X-Recettes-Code': codeAdminMemorise(), 'X-Recettes-Forcer':'1'}, body: JSON.stringify(D) });
+        if(rep.ok) return true;
+      }catch(e){ /* nouvelle tentative */ }
+      if(essai < 3) await new Promise(res => setTimeout(res, 1500));
+    }
+    return false;
+  }
+
   const TAILLE_LOT = 20;
-  let fait = 0, echecs = 0;
+  let fait = 0, echecsPhoto = 0, lotsNonEnregistres = 0;
   for(let i = 0; i < aTraiter.length; i += TAILLE_LOT){
     const lot = aTraiter.slice(i, i + TAILLE_LOT);
     for(const r of lot){
@@ -1410,15 +1429,23 @@ async function basculerAnciennesPhotos(){
         r.photo = j.url;
         fait++;
       }catch(e){
-        echecs++;
+        echecsPhoto++;
       }
     }
-    try{
-      await fetch('/api/data', { method:'POST', headers:{'Content-Type':'application/json','X-Recettes-Code': codeAdminMemorise(), 'X-Recettes-Forcer':'1'}, body: JSON.stringify(D) });
-    }catch(e){ /* on continue : le prochain lot réessaiera d'enregistrer aussi */ }
+    if(!(await enregistrerAvecRelances())) lotsNonEnregistres++;
     renderCatalogue();
   }
-  alert('Terminé : ' + fait + ' photo(s) basculée(s)' + (echecs ? ', ' + echecs + ' échec(s) (relance le bouton pour les reprendre).' : '.'));
+  // Enregistrement final de contrôle : garantit que le dernier état (toutes les
+  // photos basculées jusqu'ici) est bien celui qui reste sur le serveur, même si
+  // un lot intermédiaire avait échoué en silence dans une version précédente.
+  const finalOk = await enregistrerAvecRelances();
+
+  let message = 'Terminé : ' + fait + ' photo(s) basculée(s).';
+  if(echecsPhoto) message += ' ' + echecsPhoto + ' photo(s) n\'ont pas pu être envoyée(s).';
+  if(!finalOk) message += ' ⚠ L\'enregistrement final a échoué : rien n\'est confirmé côté serveur, relance le bouton.';
+  else if(lotsNonEnregistres) message += ' (un ou plusieurs lots intermédiaires avaient échoué, mais tout est bien enregistré maintenant.)';
+  if(finalOk && !echecsPhoto) message = 'Terminé : ' + fait + ' photo(s) basculée(s) et enregistrées.';
+  alert(message);
 }
 
 // v34 — Cadrage manuel (4/3) avant l'envoi d'une photo.
