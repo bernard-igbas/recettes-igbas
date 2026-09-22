@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v33 — 22/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v34 — 22/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -134,9 +134,15 @@
       20 avec enregistrement intermédiaire (rien n'est perdu si on ferme la page en
       cours de route ; on peut relancer, il reprend où il en était).
       Nécessite photo.js v1.0 et data.js v1.7 (ou plus récent)
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026).
+    - v34 : CADRAGE MANUEL DE LA PHOTO. Avant l'envoi, un cadre 4/3 s'affiche par-
+      dessus la photo choisie : on la déplace (glisser) et on la rapproche/éloigne
+      (curseur de zoom) pour choisir précisément la partie gardée, rien n'est coupé
+      sans qu'on le voie. Validation avec « Valider le cadrage », ou « Annuler » pour
+      choisir une autre photo. Concerne uniquement les nouvelles photos ajoutées ;
+      les photos déjà en place ne sont pas concernées
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026), v33 (22/09/2026).
 -->
-<meta name="app-version" content="v33-2026-09-22">
+<meta name="app-version" content="v34-2026-09-22">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -242,6 +248,18 @@
 
   .photo-drop{border:2px dashed var(--line);border-radius:14px;padding:20px;text-align:center;color:var(--muted);font-size:16px;background:#FBFCF9;cursor:pointer;}
   .photo-preview{max-width:100%;max-height:180px;border-radius:10px;margin-top:10px;display:none;}
+  .crop-overlay{position:fixed;inset:0;background:rgba(30,30,25,.55);display:none;align-items:center;justify-content:center;z-index:500;padding:16px;}
+  .crop-overlay.actif{display:flex;}
+  .crop-box{background:#fff;border-radius:16px;padding:20px;max-width:400px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+  .crop-box h3{margin:0 0 12px;font-size:19px;}
+  .crop-viewport{width:100%;aspect-ratio:4/3;overflow:hidden;border-radius:10px;border:2px solid var(--line);position:relative;background:#eee;touch-action:none;cursor:grab;}
+  .crop-viewport:active{cursor:grabbing;}
+  .crop-viewport img{position:absolute;left:0;top:0;transform-origin:top left;user-select:none;-webkit-user-drag:none;pointer-events:none;}
+  .crop-controls{display:flex;align-items:center;gap:10px;margin-top:14px;}
+  .crop-controls input[type=range]{flex:1;}
+  .crop-actions{display:flex;gap:10px;margin-top:16px;}
+  .crop-actions button{flex:1;padding:12px;border-radius:10px;font-size:17px;font-weight:600;border:1px solid var(--line);cursor:pointer;}
+  .crop-actions .principal{background:var(--herb-dark);color:#fff;border:none;}
 
   .ing-search-wrap{position:relative;}
   .ing-suggest{position:absolute;left:0;right:0;top:100%;background:#fff;border:1.5px solid var(--line);border-radius:10px;margin-top:4px;max-height:220px;overflow:auto;z-index:5;box-shadow:0 8px 20px rgba(0,0,0,.08);}
@@ -360,7 +378,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v33 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -470,6 +488,22 @@
         <div class="photo-drop" id="photoDropZone" onclick="document.getElementById('fPhotoFile').click()">Cliquer pour choisir une photo</div>
         <input type="file" id="fPhotoFile" accept="image/*" style="display:none" onchange="handlePhoto(event)">
         <img id="photoPreview" class="photo-preview">
+        <div class="crop-overlay" id="cropOverlay">
+          <div class="crop-box">
+            <h3>Cadrer la photo</h3>
+            <div class="crop-viewport" id="cropViewport">
+              <img id="cropImg" alt="">
+            </div>
+            <div class="crop-controls">
+              <span>🔍</span>
+              <input type="range" id="cropZoom" min="1" max="3" step="0.01" value="1">
+            </div>
+            <div class="crop-actions">
+              <button onclick="annulerCadrage()">Annuler</button>
+              <button class="principal" onclick="validerCadrage()">Valider le cadrage</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="field">
@@ -1167,30 +1201,10 @@ function handlePhoto(evt){
         zone.style.color = '#c0392b';
         return;
       }
-      const canvas = document.createElement('canvas');
-      const maxW = 800;
-      const scale = Math.min(1, maxW/img.width);
-      canvas.width = img.width*scale;
-      canvas.height = img.height*scale;
-      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-      const photoCompressee = canvas.toDataURL('image/jpeg', 0.75);
-      const prev = document.getElementById('photoPreview');
-      prev.src = photoCompressee;
-      prev.style.display = 'block';
-      // v33 — la photo part tout de suite dans son propre rangement : la fiche
-      // recette ne gardera qu'une adresse vers elle, jamais la photo elle-même.
-      zone.textContent = 'Envoi de la photo en cours…';
-      fetch('/api/photo', { method:'POST', headers:{'X-Recettes-Code': codeAdminMemorise()}, body: photoCompressee })
-        .then(r => { if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(reponse => {
-          currentPhoto = reponse.url;
-          zone.textContent = texteInitial;
-          zone.style.color = '';
-        })
-        .catch(() => {
-          zone.textContent = '⚠ Échec de l\'envoi de la photo — vérifie ta connexion et réessaie.';
-          zone.style.color = '#c0392b';
-        });
+      zone.textContent = texteInitial;
+      zone.style.color = '';
+      // v34 — au lieu d'envoyer la photo telle quelle, on ouvre le cadrage manuel.
+      ouvrirCadrage(img, e.target.result);
     };
     img.src = e.target.result;
   };
@@ -1405,6 +1419,107 @@ async function basculerAnciennesPhotos(){
     renderCatalogue();
   }
   alert('Terminé : ' + fait + ' photo(s) basculée(s)' + (echecs ? ', ' + echecs + ' échec(s) (relance le bouton pour les reprendre).' : '.'));
+}
+
+// v34 — Cadrage manuel (4/3) avant l'envoi d'une photo.
+// L'image est affichée plus grande que la fenêtre de cadrage ("viewport") et on la
+// déplace/zoome par-dessous ; ce qui est visible dans la fenêtre est ce qui sera
+// gardé. Le résultat est toujours une image de 800x600 (4/3), légère.
+let cadrageEtat = null;
+function ouvrirCadrage(img, sourceOriginale){
+  const viewport = document.getElementById('cropViewport');
+  const vw = viewport.clientWidth || 320, vh = viewport.clientHeight || 240;
+  const baseScale = Math.max(vw / img.naturalWidth, vh / img.naturalHeight);
+  cadrageEtat = {
+    iw: img.naturalWidth, ih: img.naturalHeight,
+    vw, vh, baseScale, zoom: 1,
+    offsetX: 0, offsetY: 0,
+    enCours: false, depX: 0, depY: 0
+  };
+  cadrageEtat.offsetX = (vw - img.naturalWidth * baseScale) / 2;
+  cadrageEtat.offsetY = (vh - img.naturalHeight * baseScale) / 2;
+  const cropImg = document.getElementById('cropImg');
+  cropImg.src = sourceOriginale;
+  document.getElementById('cropZoom').value = 1;
+  majAffichageCadrage();
+  document.getElementById('cropOverlay').classList.add('actif');
+}
+function clamperCadrage(){
+  const st = cadrageEtat;
+  const s = st.baseScale * st.zoom;
+  const dw = st.iw * s, dh = st.ih * s;
+  st.offsetX = Math.min(0, Math.max(st.vw - dw, st.offsetX));
+  st.offsetY = Math.min(0, Math.max(st.vh - dh, st.offsetY));
+}
+function majAffichageCadrage(){
+  if(!cadrageEtat) return;
+  clamperCadrage();
+  const st = cadrageEtat;
+  const s = st.baseScale * st.zoom;
+  const img = document.getElementById('cropImg');
+  img.style.width = (st.iw * s) + 'px';
+  img.style.height = (st.ih * s) + 'px';
+  img.style.transform = 'translate(' + st.offsetX + 'px,' + st.offsetY + 'px)';
+}
+(function initInteractionsCadrage(){
+  const viewport = document.getElementById('cropViewport');
+  const zoomInput = document.getElementById('cropZoom');
+  if(!viewport || !zoomInput) return;
+  viewport.addEventListener('pointerdown', function(ev){
+    if(!cadrageEtat) return;
+    cadrageEtat.enCours = true;
+    cadrageEtat.depX = ev.clientX - cadrageEtat.offsetX;
+    cadrageEtat.depY = ev.clientY - cadrageEtat.offsetY;
+    try{ viewport.setPointerCapture(ev.pointerId); }catch(e){}
+  });
+  viewport.addEventListener('pointermove', function(ev){
+    if(!cadrageEtat || !cadrageEtat.enCours) return;
+    cadrageEtat.offsetX = ev.clientX - cadrageEtat.depX;
+    cadrageEtat.offsetY = ev.clientY - cadrageEtat.depY;
+    majAffichageCadrage();
+  });
+  ['pointerup','pointercancel'].forEach(function(evt){
+    viewport.addEventListener(evt, function(){ if(cadrageEtat) cadrageEtat.enCours = false; });
+  });
+  zoomInput.addEventListener('input', function(){
+    if(!cadrageEtat) return;
+    cadrageEtat.zoom = parseFloat(zoomInput.value) || 1;
+    majAffichageCadrage();
+  });
+})();
+function annulerCadrage(){
+  document.getElementById('cropOverlay').classList.remove('actif');
+  cadrageEtat = null;
+  document.getElementById('fPhotoFile').value = '';
+}
+function validerCadrage(){
+  if(!cadrageEtat) return;
+  const st = cadrageEtat;
+  const s = st.baseScale * st.zoom;
+  const srcX = -st.offsetX / s, srcY = -st.offsetY / s;
+  const srcW = st.vw / s, srcH = st.vh / s;
+  const canvas = document.createElement('canvas');
+  canvas.width = 800; canvas.height = 600;
+  canvas.getContext('2d').drawImage(document.getElementById('cropImg'), srcX, srcY, srcW, srcH, 0, 0, 800, 600);
+  const photoCompressee = canvas.toDataURL('image/jpeg', 0.8);
+  document.getElementById('cropOverlay').classList.remove('actif');
+
+  const prev = document.getElementById('photoPreview');
+  prev.src = photoCompressee;
+  prev.style.display = 'block';
+  const zone = document.getElementById('photoDropZone');
+  zone.textContent = 'Envoi de la photo en cours…';
+  fetch('/api/photo', { method:'POST', headers:{'X-Recettes-Code': codeAdminMemorise()}, body: photoCompressee })
+    .then(r => { if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(reponse => {
+      currentPhoto = reponse.url;
+      zone.textContent = 'Cliquer pour choisir une photo';
+      zone.style.color = '';
+    })
+    .catch(() => {
+      zone.textContent = "⚠ Échec de l'envoi de la photo — vérifie ta connexion et réessaie.";
+      zone.style.color = '#c0392b';
+    });
 }
 
 loadData();
