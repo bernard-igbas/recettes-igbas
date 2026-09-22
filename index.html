@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v32 — 21/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v33 — 22/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -125,9 +125,18 @@
       encore, elle affiche un message clair (« Impossible de charger les recettes… »)
       au lieu d'un catalogue vide trompeur, et l'enregistrement/la suppression sont
       bloqués tant que les recettes ne sont pas chargées. Nécessite data.js v1.7
-  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026).
+    - v33 : PHOTOS SÉPARÉES DU TEXTE (constaté le 22/09/2026 : enregistrement passé
+      de 0,7 s à 7,4 s avec 234 photos sur 334). Chaque photo est maintenant envoyée
+      tout de suite à son propre rangement (/api/photo) dès qu'on la choisit ; la
+      fiche recette ne garde qu'une adresse vers elle, plus la photo elle-même.
+      Nouveau bouton réservé (barre d'actions) : « Basculer les anciennes photos »,
+      qui convertit en une fois les photos encore intégrées aux fiches, par lots de
+      20 avec enregistrement intermédiaire (rien n'est perdu si on ferme la page en
+      cours de route ; on peut relancer, il reprend où il en était).
+      Nécessite photo.js v1.0 et data.js v1.7 (ou plus récent)
+  Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026).
 -->
-<meta name="app-version" content="v32-2026-09-21">
+<meta name="app-version" content="v33-2026-09-22">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -351,11 +360,12 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v32 &bull; 21/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v33 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
       <button id="tabImport" class="admin-only" onclick="ouvrirImport()">Importer un lot (PDF)</button>
+      <button class="admin-only" onclick="basculerAnciennesPhotos()" style="background:#fff;color:var(--herb-dark);border:1px solid var(--line);">Basculer les anciennes photos</button>
     </nav>
   </header>
 
@@ -1163,12 +1173,24 @@ function handlePhoto(evt){
       canvas.width = img.width*scale;
       canvas.height = img.height*scale;
       canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-      currentPhoto = canvas.toDataURL('image/jpeg', 0.75);
+      const photoCompressee = canvas.toDataURL('image/jpeg', 0.75);
       const prev = document.getElementById('photoPreview');
-      prev.src = currentPhoto;
+      prev.src = photoCompressee;
       prev.style.display = 'block';
-      zone.textContent = texteInitial;
-      zone.style.color = '';
+      // v33 — la photo part tout de suite dans son propre rangement : la fiche
+      // recette ne gardera qu'une adresse vers elle, jamais la photo elle-même.
+      zone.textContent = 'Envoi de la photo en cours…';
+      fetch('/api/photo', { method:'POST', headers:{'X-Recettes-Code': codeAdminMemorise()}, body: photoCompressee })
+        .then(r => { if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(reponse => {
+          currentPhoto = reponse.url;
+          zone.textContent = texteInitial;
+          zone.style.color = '';
+        })
+        .catch(() => {
+          zone.textContent = '⚠ Échec de l\'envoi de la photo — vérifie ta connexion et réessaie.';
+          zone.style.color = '#c0392b';
+        });
     };
     img.src = e.target.result;
   };
@@ -1351,6 +1373,39 @@ async function saveRecette(){
     }catch(e){ /* adresse de retour invalide : on garde la page d'accueil par défaut */ }
   }
 })();
+
+// v33 — Bascule des photos encore intégrées aux fiches (format "data:...") vers
+// leur propre rangement (/api/photo). Traite par lots de 20, avec un enregistrement
+// après chaque lot : rien n'est perdu si on ferme la page en cours de route, et on
+// peut relancer le bouton, il reprend seulement les photos encore à convertir.
+async function basculerAnciennesPhotos(){
+  if(!chargementOk){ alert('Les recettes ne sont pas chargées : recharge la page avant de lancer la bascule.'); return; }
+  const aTraiter = D.recettes.filter(r => typeof r.photo === 'string' && r.photo.startsWith('data:'));
+  if(aTraiter.length === 0){ alert('Aucune photo à basculer : elles sont déjà toutes dans leur propre rangement.'); return; }
+  if(!confirm(aTraiter.length + ' photo(s) à basculer. Ça peut prendre plusieurs minutes. Continuer ?')) return;
+
+  const TAILLE_LOT = 20;
+  let fait = 0, echecs = 0;
+  for(let i = 0; i < aTraiter.length; i += TAILLE_LOT){
+    const lot = aTraiter.slice(i, i + TAILLE_LOT);
+    for(const r of lot){
+      try{
+        const rep = await fetch('/api/photo', { method:'POST', headers:{'X-Recettes-Code': codeAdminMemorise()}, body: r.photo });
+        if(!rep.ok) throw new Error('HTTP ' + rep.status);
+        const j = await rep.json();
+        r.photo = j.url;
+        fait++;
+      }catch(e){
+        echecs++;
+      }
+    }
+    try{
+      await fetch('/api/data', { method:'POST', headers:{'Content-Type':'application/json','X-Recettes-Code': codeAdminMemorise(), 'X-Recettes-Forcer':'1'}, body: JSON.stringify(D) });
+    }catch(e){ /* on continue : le prochain lot réessaiera d'enregistrer aussi */ }
+    renderCatalogue();
+  }
+  alert('Terminé : ' + fait + ' photo(s) basculée(s)' + (echecs ? ', ' + echecs + ' échec(s) (relance le bouton pour les reprendre).' : '.'));
+}
 
 loadData();
 loadAliments();
