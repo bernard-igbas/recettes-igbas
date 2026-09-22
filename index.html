@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v34.2 — 22/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v34.3 — 22/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -151,9 +151,16 @@
       recettes sans photo parmi les 402, sans avoir à toutes les ouvrir. Le catalogue
       reste trié alphabétiquement (déjà le cas). Sur chaque carte, une étiquette
       « Sans photo » apparaît (visible seulement pour Bernard et Marie-Laure)
+    - v34.3 (22/09/2026) : TRACE DES MODIFICATIONS. Chaque enregistrement d'une
+      recette note désormais qui l'a faite et à quel moment (date, heure, minute,
+      seconde). La première fois sur un appareil, un petit choix « Bernard / Marie-
+      Laure » est demandé (mémorisé ensuite, modifiable via un lien « changer »).
+      La date/l'auteur de la dernière modification s'affichent en haut de la fiche
+      détail, réservés à Bernard/Marie-Laure — sert à savoir qui a touché quoi et
+      quand, notamment pour coordonner l'ajout des photos originales
   Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026), v33 (22/09/2026).
 -->
-<meta name="app-version" content="v34.2-2026-09-22">
+<meta name="app-version" content="v34.3-2026-09-22">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -389,12 +396,13 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.2 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.3 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
       <button id="tabImport" class="admin-only" onclick="ouvrirImport()">Importer un lot (PDF)</button>
       <button class="admin-only" onclick="basculerAnciennesPhotos()" style="background:#fff;color:var(--herb-dark);border:1px solid var(--line);">Basculer les anciennes photos</button>
+      <span class="admin-only" id="quiEsTuActuel" style="align-self:center;font-size:14px;color:var(--muted);"></span>
     </nav>
   </header>
 
@@ -621,6 +629,27 @@ let currentSousCat = "Toutes";
 let currentRecetteId = null;
 let editingId = null;
 let filtrePhoto = 'toutes';
+
+// v34.3 — Qui modifie les recettes sur cet appareil (pour la trace des modifications).
+function nomEditeurMemorise(){
+  try{ return localStorage.getItem('recettes_modif_nom') || ''; }catch(e){ return ''; }
+}
+function definirNomEditeur(nom){
+  try{ localStorage.setItem('recettes_modif_nom', nom); }catch(e){}
+  afficherQuiEsTu();
+}
+function afficherQuiEsTu(){
+  const zone = document.getElementById('quiEsTuActuel');
+  if(!zone) return;
+  const nom = nomEditeurMemorise();
+  zone.innerHTML = nom
+    ? 'Modifications sous : <b>' + escapeHtml(nom) + '</b> (<a href="#" onclick="event.preventDefault();choisirQuiEsTu();">changer</a>)'
+    : '<a href="#" onclick="event.preventDefault();choisirQuiEsTu();">Qui es-tu ? (pour la trace des modifications)</a>';
+}
+function choisirQuiEsTu(){
+  const nom = prompt('Qui es-tu ? (Bernard ou Marie-Laure)', nomEditeurMemorise() || '');
+  if(nom && nom.trim()) definirNomEditeur(nom.trim());
+}
 function setFiltrePhoto(v){
   filtrePhoto = v;
   document.querySelectorAll('#filtrePhotoRow .souscat-btn').forEach(b => b.classList.toggle('active', b.dataset.val === v));
@@ -1045,6 +1074,7 @@ function openDetail(id){
           <div class="hero-text">
             <span class="hero-tag">${escapeHtml(r.categorie)}${r.sousCategorie? ' · '+escapeHtml(r.sousCategorie):''}${r.categorie2 ? ' — aussi : '+escapeHtml(r.categorie2) : ''}</span>
             <h2>${escapeHtml(r.titre)}</h2>
+            ${modeAdmin && r.modifieLe ? `<div class="admin-only" style="font-size:13px;color:var(--muted);margin-top:4px;">Dernière modification : ${new Date(r.modifieLe).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})} par ${escapeHtml(r.modifiePar||'inconnu')}</div>` : ''}
           </div>
           ${r.photo? `<div class="hero-photo-cadre"><img class="hero-photo" src="${r.photo}"></div>` : ''}
         </div>
@@ -1338,7 +1368,9 @@ async function saveRecette(){
     photo: currentPhoto,
     ingredients: currentIngredients,
     etapes: currentSteps.filter(s=>s.trim()),
-    remarque: document.getElementById('fRemarque').value.trim()
+    remarque: document.getElementById('fRemarque').value.trim(),
+    modifiePar: nomEditeurMemorise() || 'Non renseigné',
+    modifieLe: new Date().toISOString()
   };
 
   const donneesActuelles = await recupererDonneesFraiches();
@@ -1567,6 +1599,7 @@ function validerCadrage(){
     });
 }
 
+afficherQuiEsTu();
 loadData();
 loadAliments();
 renderCatBar();
