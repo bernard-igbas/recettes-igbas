@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v34.3 — 22/09/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v34.4 — 23/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -158,9 +158,15 @@
       La date/l'auteur de la dernière modification s'affichent en haut de la fiche
       détail, réservés à Bernard/Marie-Laure — sert à savoir qui a touché quoi et
       quand, notamment pour coordonner l'ajout des photos originales
+    - v34.4 (23/09/2026) : CORRECTIF — un ingrédient ou aliment dont le nom contient
+      une apostrophe (ex. « Poudre d'amande ») apparaissait bien dans les suggestions,
+      mais cliquer dessus ne l'ajoutait pas à la recette, sans aucun message d'erreur.
+      Cause : la fonction de protection des apostrophes (escapeAttr) avait un caractère
+      manquant depuis l'origine et ne protégeait en réalité rien. Concerne toutes les
+      recherches d'ingrédients et l'import PDF, pas seulement cet aliment précis
   Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026), v33 (22/09/2026).
 -->
-<meta name="app-version" content="v34.3-2026-09-22">
+<meta name="app-version" content="v34.4-2026-09-23">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -396,7 +402,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.3 &bull; 22/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.4 &bull; 23/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -1059,7 +1065,7 @@ function renderCatalogue(){
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function escapeAttr(s){ return (s||'').replace(/'/g, "\'"); }
+function escapeAttr(s){ return (s||'').replace(/'/g, "\\'"); }
 
 // ===================== FICHE DÉTAIL =====================
 function openDetail(id){
