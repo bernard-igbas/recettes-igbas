@@ -12,7 +12,10 @@ export async function onRequestGet({ params, env }) {
   const key = `client:${params.code}:${params.kind}`;
   const raw = await env.IGBAS_KV.get(key);
   return new Response(raw || "null", {
-    headers: { "content-type": "application/json" }
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store"
+    }
   });
 }
 
