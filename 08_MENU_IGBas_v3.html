@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<!--
+  CHANGELOG
+  v3 - 2026-09-25 : rattachement à la base commune (Cloudflare KV) via l'API
+       /api/client/{code}/semainier, à la place du localStorage seul.
+       Le code client est lu dans l'URL (?code=...), comme sur l'écran
+       "Espace Clients". Le localStorage reste utilisé en secours si
+       l'API n'est pas disponible (mode hors-ligne / test local).
+  v2 - version précédente : suivi 100% local (localStorage), partage
+       par lien encodé en base64 vers Marie-Laure.
+-->
+<meta charset="UTF-8">
+<meta name="app-version" content="v3-2026-09-25">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IGBas® — Suivi Menus Hebdomadaire</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+:root {
+  --green:        #1E6B2E;
+  --green-dark:   #13471E;
+  --green-light:  #E8F5E9;
+  --green-mid:    #81C784;
+  --green-pale:   #F1F8F2;
+  --orange:       #D84315;
+  --orange-light: #FBE9E7;
+  --blue:         #1565C0;
+  --blue-light:   #E3F2FD;
+  --yellow:       #FFF8E1;
+  --yellow-dark:  #F9A825;
+  --white:        #FFFFFF;
+  --grey-50:      #FAFAFA;
+  --grey-100:     #F5F5F5;
+  --grey-200:     #EEEEEE;
+  --grey-400:     #BDBDBD;
+  --grey-600:     #757575;
+  --grey-800:     #424242;
+  --text:         #1A2E1C;
+  --radius:       10px;
+  --shadow-sm:    0 1px 4px rgba(0,0,0,0.07);
+  --shadow-md:    0 3px 12px rgba(0,0,0,0.10);
+  --shadow-lg:    0 8px 28px rgba(0,0,0,0.13);
+  --font:         'DM Sans', sans-serif;
+  --font-display: 'DM Serif Display', serif;
+  --locked-bg:    #F0F7F1;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: var(--font);
+  background: #E9EEE9;
+  color: var(--text);
+  min-height: 100vh;
+  padding-bottom: 80px;
+}
+
+/* ══════════════════════════════════════════
+   BANDEAU HAUT FIXE
+══════════════════════════════════════════ */
+.header-fixed {
+  background: var(--green-dark);
+  padding: 0;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+}
+.header-fixed-inner {
+  display: flex;
+  align-items: stretch;
+  min-height: 64px;
+}
+.hf-brand {
+  background: var(--green);
+  padding: 12px 24px;
+  display: flex; flex-direction: column; justify-content: center;
+  min-width: 200px;
+  border-right: 1px solid rgba(255,255,255,0.12);
+}
+.hf-brand-name {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  color: white;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.hf-brand-tagline {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.65);
+  font-style: italic;
+  margin-top: 3px;
+}
+.hf-profile {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 10px 28px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.hf-field {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.hf-field-label {
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+.hf-field-value {
+  font-size: 0.95rem;
+  color: white;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hf-field-value.name { color: #A5D6A7; font-size: 1.05rem; }
+.hf-sep {
+  width: 1px;
+  background: rgba(255,255,255,0.15);
+  align-self: stretch;
+  margin: 10px 0;
+}
+.hf-setup-btn {
+  margin-left: auto;
+  padding: 0 20px;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.45);
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-family: var(--font);
+  display: flex; align-items: center; gap: 5px;
+  transition: color 0.2s;
+}
+.hf-setup-btn:hover { color: rgba(255,255,255,0.85); }
+
+/* Modale profil */
+.modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 1000;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: white;
+  border-radius: 16px;
+  padding: 32px 36px;
+  width: 480px; max-width: 95vw;
+  box-shadow: var(--shadow-lg);
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--green);
+  margin-bottom: 6px;
+}
+.modal-sub { font-size: 0.82rem; color: var(--grey-600); margin-bottom: 22px; line-height: 1.5; }
+.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.modal-field { display: flex; flex-direction: column; gap: 5px; }
+.modal-field.full { grid-column: 1/-1; }
+.modal-label { font-size: 0.78rem; font-weight: 600; color: var(--grey-800); text-transform: uppercase; letter-spacing: 0.5px; }
+.modal-input {
+  border: 1.5px solid var(--grey-200);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: var(--font);
+  font-size: 0.92rem;
+  color: var(--text);
+  transition: border-color 0.2s;
+}
+.modal-input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(30,107,46,0.1); }
+.modal-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+  margin-top: 22px;
+}
+.btn-modal-cancel {
+  padding: 9px 20px; border-radius: 8px; font-family: var(--font);
+  font-size: 0.88rem; border: 1.5px solid var(--grey-200);
+  background: white; color: var(--grey-600); cursor: pointer;
+}
+.btn-modal-save {
+  padding: 9px 22px; border-radius: 8px; font-family: var(--font);
+  font-size: 0.88rem; border: none;
+  background: var(--green); color: white; cursor: pointer; font-weight: 600;
+}
+.btn-modal-save:hover { background: var(--green-dark); }
+
+/* ══════════════════════════════════════════
+   BANDEAU HAUT MODIFIABLE — Semaine + Mensurations
+══════════════════════════════════════════ */
+.header-week {
+  background: white;
+  border-bottom: 2px solid var(--green-light);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  box-shadow: var(--shadow-sm);
+}
+.hw-section {
+  display: flex; align-items: center; gap: 14px;
+  flex-wrap: wrap;
+}
+.hw-section + .hw-section {
+  padding-left: 20px;
+  border-left: 2px solid var(--green-light);
+}
+.hw-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  white-space: nowrap;
+}
+.hw-date-wrap { display: flex; align-items: center; gap: 6px; }
+.hw-date-wrap span { font-size: 0.8rem; color: var(--grey-600); }
+input[type="date"].hw-input {
+  border: 1.5px solid var(--grey-200);
+  border-radius: 7px;
+  padding: 5px 9px;
+  font-family: var(--font); font-size: 0.85rem;
+  color: var(--text); background: var(--grey-50);
+}
+input[type="date"].hw-input:focus { outline: none; border-color: var(--green); }
+
+/* Mensurations inline */
+.mens-group {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.mens-item {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--green-pale);
+  border: 1.5px solid var(--green-light);
+  border-radius: 8px;
+  padding: 5px 10px;
+}
+.mens-icon { font-size: 1rem; }
+.mens-lbl { font-size: 0.75rem; color: var(--green); font-weight: 600; }
+.mens-input {
+  width: 56px;
+  border: none; background: transparent;
+  font-family: var(--font); font-size: 0.88rem;
+  color: var(--text); text-align: right;
+  outline: none;
+}
+.mens-unit { font-size: 0.72rem; color: var(--grey-600); }
+.mens-week-note {
+  font-size: 0.73rem; color: var(--grey-600); font-style: italic;
+  white-space: nowrap; align-self: center;
+}
+
+/* ══════════════════════════════════════════
+   CONTENEUR PRINCIPAL
+══════════════════════════════════════════ */
+.container {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 16px 14px 0;
+}
+
+/* ══════════════════════════════════════════
+   BILAN SEMAINE
+══════════════════════════════════════════ */
+.bilan-bar {
+  background: white;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--green-light);
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 18px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+.bilan-icon { font-size: 1.3rem; }
+.bilan-title { font-weight: 700; font-size: 0.9rem; color: var(--green); white-space: nowrap; }
+.bilan-fields { display: flex; gap: 12px; flex: 1; flex-wrap: wrap; }
+.bilan-field { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 140px; }
+.bilan-field label { font-size: 0.72rem; color: var(--grey-600); font-weight: 500; }
+.bilan-input {
+  border: 1.5px solid var(--grey-200); border-radius: 7px;
+  padding: 6px 10px; font-family: var(--font); font-size: 0.88rem;
+  color: var(--text); background: var(--grey-50);
+  transition: border-color 0.2s;
+}
+.bilan-input:focus { outline: none; border-color: var(--green); background: white; }
+
+/* ══════════════════════════════════════════
+   CARDS JOURS
+══════════════════════════════════════════ */
+.day-card {
+  background: white;
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  border-left: 4px solid var(--green-mid);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.day-card:hover { box-shadow: var(--shadow-md); }
+.day-card.samedi { border-left-color: var(--orange); }
+.day-card.collapsed .day-body,
+.day-card.collapsed .ml-row { display: none; }
+
+.day-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 16px;
+  background: var(--green-pale);
+  cursor: pointer; user-select: none;
+  flex-wrap: wrap;
+}
+.samedi .day-header { background: var(--orange-light); }
+.day-emoji { font-size: 1.3rem; flex-shrink: 0; }
+.day-name { font-weight: 700; font-size: 1rem; color: var(--green); min-width: 90px; }
+.samedi .day-name { color: var(--orange); }
+.day-date-wrap { display: flex; align-items: center; gap: 5px; }
+.day-date-wrap label { font-size: 0.78rem; color: var(--grey-600); }
+input[type="date"].day-date {
+  border: 1px solid var(--grey-200); border-radius: 6px;
+  padding: 3px 7px; font-size: 0.8rem; font-family: var(--font);
+  background: white; color: var(--text);
+}
+input[type="date"].day-date:focus { outline: none; border-color: var(--green); }
+.day-chevron {
+  margin-left: auto; color: var(--green-mid);
+  font-size: 0.8rem; transition: transform 0.2s;
+}
+.samedi .day-chevron { color: var(--orange); }
+.day-card.collapsed .day-chevron { transform: rotate(-90deg); }
+
+/* Grid repas */
+.day-body {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) 200px;
+  gap: 0;
+  border-top: 1px solid var(--grey-200);
+}
+@media (max-width: 900px) { .day-body { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .day-body { grid-template-columns: 1fr; } }
+
+.meal-block {
+  padding: 10px 12px;
+  border-right: 1px solid var(--grey-200);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.meal-block:last-child { border-right: none; }
+
+.meal-title {
+  font-size: 0.72rem; font-weight: 700; color: var(--green);
+  text-transform: uppercase; letter-spacing: 0.8px;
+}
+.samedi .meal-title { color: var(--orange); }
+
+/* GP/PL toggle */
+.gp-pl { display: flex; gap: 5px; }
+.toggle-btn {
+  padding: 2px 10px; border-radius: 20px; font-size: 0.74rem;
+  font-weight: 700; border: 1.5px solid; cursor: pointer;
+  font-family: var(--font); transition: all 0.15s; background: white;
+  line-height: 1.6;
+}
+.gp-btn { border-color: var(--orange); color: var(--orange); }
+.gp-btn.on { background: var(--orange); color: white; }
+.pl-btn { border-color: var(--blue); color: var(--blue); }
+.pl-btn.on { background: var(--blue); color: white; }
+
+.meal-ta {
+  flex: 1;
+  border: 1.5px solid var(--grey-200); border-radius: 7px;
+  padding: 7px 9px; font-family: var(--font); font-size: 0.83rem;
+  resize: vertical; min-height: 64px; line-height: 1.5;
+  color: var(--text); background: var(--grey-50);
+  transition: border-color 0.18s, background 0.18s;
+}
+.meal-ta:focus { outline: none; border-color: var(--green); background: white; }
+
+/* Bloc latéral grignotage + moral */
+.side-block {
+  padding: 10px 12px;
+  background: var(--blue-light);
+  display: flex; flex-direction: column; gap: 7px;
+}
+.side-title { font-size: 0.72rem; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: 0.8px; }
+.moral-row { display: flex; gap: 4px; }
+.moral-btn {
+  font-size: 1.25rem; cursor: pointer; border: 2px solid transparent;
+  border-radius: 50%; padding: 1px; background: none; line-height: 1;
+  transition: all 0.15s;
+}
+.moral-btn.on { border-color: var(--green); background: white; transform: scale(1.15); }
+
+/* Ligne commentaire Marie-Laure */
+.ml-row {
+  padding: 5px 16px 8px;
+  background: var(--green-light);
+  border-top: 1px solid var(--green-mid);
+}
+.ml-label { font-size: 0.73rem; color: var(--green); font-style: italic; font-weight: 600; margin-bottom: 2px; }
+.ml-ta {
+  width: 100%; border: 1px dashed var(--green-mid); border-radius: 6px;
+  padding: 4px 10px; font-family: var(--font); font-size: 0.82rem;
+  font-style: italic; min-height: 30px; background: rgba(255,255,255,0.65);
+  color: var(--green-dark); resize: none;
+}
+.ml-ta:focus { outline: none; border-color: var(--green); background: white; }
+
+/* ══════════════════════════════════════════
+   RAPPELS
+══════════════════════════════════════════ */
+.rappels {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin: 10px 0 12px;
+}
+@media (max-width: 640px) { .rappels { grid-template-columns: 1fr; } }
+.rappel-card {
+  background: var(--yellow); border-radius: var(--radius);
+  padding: 11px 15px; border-left: 4px solid var(--yellow-dark);
+}
+.rappel-card-title { font-size: 0.85rem; font-weight: 700; color: var(--green); margin-bottom: 3px; }
+.rappel-card-text { font-size: 0.78rem; color: #555; line-height: 1.5; }
+
+/* ══════════════════════════════════════════
+   BANDEAU BAS STICKY
+══════════════════════════════════════════ */
+.footer-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--green-dark);
+  padding: 10px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap;
+  box-shadow: 0 -3px 16px rgba(0,0,0,0.22);
+  z-index: 150;
+}
+.footer-progress { display: flex; align-items: center; gap: 10px; }
+.fp-text { font-size: 0.8rem; color: rgba(255,255,255,0.7); white-space: nowrap; }
+.fp-bar-wrap { width: 120px; height: 5px; background: rgba(255,255,255,0.15); border-radius: 10px; overflow: hidden; }
+.fp-bar { height: 100%; background: var(--green-mid); border-radius: 10px; transition: width 0.4s; }
+
+.footer-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.fb-btn {
+  padding: 8px 16px; border-radius: 8px; font-size: 0.83rem; font-weight: 600;
+  cursor: pointer; border: none; font-family: var(--font);
+  display: flex; align-items: center; gap: 5px; transition: all 0.17s;
+  white-space: nowrap;
+}
+.btn-save    { background: #A5D6A7; color: var(--green-dark); }
+.btn-save:hover { background: #C8E6C9; }
+.btn-print   { background: white; color: var(--green-dark); }
+.btn-print:hover { background: #E8F5E9; }
+.btn-share   { background: var(--green); color: white; border: 1.5px solid rgba(255,255,255,0.25); }
+.btn-share:hover { background: #2E7D32; }
+.btn-urgence { background: #B71C1C; color: white; }
+.btn-urgence:hover { background: #C62828; }
+.btn-reset   { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.15); }
+.btn-reset:hover { background: rgba(255,255,255,0.15); color: white; }
+
+/* ══════════════════════════════════════════
+   MODALE PARTAGE
+══════════════════════════════════════════ */
+.share-modal .modal-box { max-width: 520px; }
+.share-url-wrap {
+  display: flex; gap: 8px; margin: 14px 0 8px;
+}
+.share-url-input {
+  flex: 1; border: 1.5px solid var(--grey-200); border-radius: 8px;
+  padding: 9px 12px; font-size: 0.82rem; font-family: var(--font);
+  background: var(--grey-50); color: var(--grey-600);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.btn-copy {
+  padding: 9px 16px; background: var(--green); color: white; border: none;
+  border-radius: 8px; font-family: var(--font); font-size: 0.85rem;
+  font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.btn-copy:hover { background: var(--green-dark); }
+.share-mailto-btn {
+  display: block; width: 100%; padding: 11px; text-align: center;
+  background: var(--green-light); border: 1.5px solid var(--green-mid);
+  border-radius: 8px; color: var(--green); font-weight: 600;
+  font-family: var(--font); font-size: 0.88rem; cursor: pointer;
+  text-decoration: none; margin-top: 8px; transition: background 0.2s;
+}
+.share-mailto-btn:hover { background: #C8E6C9; }
+.share-hint { font-size: 0.76rem; color: var(--grey-600); line-height: 1.5; margin-top: 10px; }
+
+/* ══════════════════════════════════════════
+   MODALE URGENCE
+══════════════════════════════════════════ */
+.urgence-modal .modal-box { border-top: 5px solid #C62828; }
+.urgence-title { color: #B71C1C !important; }
+.urgence-ta {
+  width: 100%; border: 1.5px solid #EF9A9A; border-radius: 8px;
+  padding: 10px 12px; font-family: var(--font); font-size: 0.9rem;
+  min-height: 90px; resize: vertical; color: var(--text);
+  transition: border-color 0.2s; margin-top: 10px;
+}
+.urgence-ta:focus { outline: none; border-color: #C62828; }
+.btn-urgence-send {
+  padding: 10px 22px; background: #B71C1C; color: white; border: none;
+  border-radius: 8px; font-family: var(--font); font-size: 0.9rem;
+  font-weight: 700; cursor: pointer;
+}
+.btn-urgence-send:hover { background: #C62828; }
+
+/* ══════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════ */
+.toast {
+  position: fixed; bottom: 72px; left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--green-dark); color: white;
+  padding: 9px 22px; border-radius: 22px; font-size: 0.87rem;
+  opacity: 0; pointer-events: none; z-index: 500;
+  transition: all 0.25s; box-shadow: var(--shadow-md);
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.error { background: #B71C1C; }
+
+/* ══════════════════════════════════════════
+   PRINT
+══════════════════════════════════════════ */
+@media print {
+  .footer-bar, .hf-setup-btn { display: none !important; }
+  body { background: white; padding: 0; }
+  .container { padding: 0; max-width: 100%; }
+  .day-card { box-shadow: none; border: 1px solid #ccc; margin-bottom: 5px; break-inside: avoid; }
+  .day-card.collapsed .day-body,
+  .day-card.collapsed .ml-row { display: grid !important; }
+  .header-fixed { position: static; }
+  .header-week { position: static; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ BANDEAU FIXE ══════════════════════════════════════════════ -->
+<div class="header-fixed">
+  <div class="header-fixed-inner">
+    <div class="hf-brand">
+      <div class="hf-brand-name">IGBas®</div>
+      <div class="hf-brand-tagline">Méthode 3+1 — Index Glycémique</div>
+      <div class="hf-brand-tagline" style="opacity:0.4;margin-top:2px;">v3-2026-09-25</div>
+    </div>
+    <div class="hf-profile" id="hf-profile">
+      <div class="hf-field">
+        <div class="hf-field-label">Code client</div>
+        <div class="hf-field-value" id="disp-code" style="color:#FFD54F;">—</div>
+      </div>
+      <div class="hf-sep"></div>
+      <div class="hf-field">
+        <div class="hf-field-label">Cliente</div>
+        <div class="hf-field-value name" id="disp-nom">— non renseigné —</div>
+      </div>
+      <div class="hf-sep"></div>
+      <div class="hf-field">
+        <div class="hf-field-label">Début méthode</div>
+        <div class="hf-field-value" id="disp-debut">—</div>
+      </div>
+      <div class="hf-sep"></div>
+      <div class="hf-field">
+        <div class="hf-field-label">Poids initial</div>
+        <div class="hf-field-value" id="disp-poids-init">— kg</div>
+      </div>
+      <div class="hf-sep"></div>
+      <div class="hf-field">
+        <div class="hf-field-label">Objectif</div>
+        <div class="hf-field-value" id="disp-poids-obj">— kg</div>
+      </div>
+      <div class="hf-sep"></div>
+      <div class="hf-field">
+        <div class="hf-field-label">Progression</div>
+        <div class="hf-field-value" id="disp-progression" style="color:#A5D6A7">—</div>
+      </div>
+    </div>
+    <button class="hf-setup-btn" onclick="openProfileModal()">⚙ Modifier profil</button>
+  </div>
+</div>
+
+<!-- ══ BANDEAU MODIFIABLE — Semaine + Mensurations ═══════════════ -->
+<div class="header-week">
+  <div class="hw-section">
+    <span class="hw-label">📅 Semaine des menus</span>
+    <div class="hw-date-wrap">
+      <span>du</span>
+      <input type="date" class="hw-input" id="sem-debut" onchange="autofillEndDate(); saveData()">
+      <span>au</span>
+      <input type="date" class="hw-input" id="sem-fin" onchange="saveData()">
+    </div>
+  </div>
+  <div class="hw-section">
+    <span class="hw-label">📏 Mensurations semaine précédente</span>
+    <div class="mens-group">
+      <div class="mens-item">
+        <span class="mens-icon">⚖️</span>
+        <span class="mens-lbl">Poids</span>
+        <input class="mens-input" type="number" step="0.1" id="mens-poids" placeholder="0.0" oninput="saveData(); updateProgression()">
+        <span class="mens-unit">kg</span>
+      </div>
+      <div class="mens-item">
+        <span class="mens-icon">📐</span>
+        <span class="mens-lbl">Taille</span>
+        <input class="mens-input" type="number" id="mens-taille" placeholder="0" oninput="saveData()">
+        <span class="mens-unit">cm</span>
+      </div>
+      <div class="mens-item">
+        <span class="mens-icon">👗</span>
+        <span class="mens-lbl">Hanches</span>
+        <input class="mens-input" type="number" id="mens-hanches" placeholder="0" oninput="saveData()">
+        <span class="mens-unit">cm</span>
+      </div>
+      <div class="mens-item">
+        <span class="mens-icon">🦵</span>
+        <span class="mens-lbl">Cuisses</span>
+        <input class="mens-input" type="number" id="mens-cuisses" placeholder="0" oninput="saveData()">
+        <span class="mens-unit">cm</span>
+      </div>
+    </div>
+    <span class="mens-week-note">↑ mesures de la semaine écoulée</span>
+  </div>
+</div>
+
+<!-- ══ CONTENU PRINCIPAL ═════════════════════════════════════════ -->
+<div class="container">
+
+  <!-- Bilan semaine -->
+  <div class="bilan-bar">
+    <span class="bilan-icon">📊</span>
+    <span class="bilan-title">Bilan de la semaine</span>
+    <div class="bilan-fields">
+      <div class="bilan-field">
+        <label>Poids début de semaine</label>
+        <input class="bilan-input" type="text" id="bil-debut" placeholder="__ kg" oninput="saveData()">
+      </div>
+      <div class="bilan-field">
+        <label>Poids fin de semaine</label>
+        <input class="bilan-input" type="text" id="bil-fin" placeholder="__ kg" oninput="saveData()">
+      </div>
+      <div class="bilan-field">
+        <label>Évolution</label>
+        <input class="bilan-input" type="text" id="bil-evol" placeholder="__ kg" oninput="saveData()">
+      </div>
+      <div class="bilan-field">
+        <label>Objectif semaine prochaine</label>
+        <input class="bilan-input" type="text" id="bil-obj" placeholder="..." oninput="saveData()">
+      </div>
+    </div>
+  </div>
+
+  <!-- Cartes jours -->
+  <div id="days-container"></div>
+
+  <!-- Rappels -->
+  <div class="rappels">
+    <div class="rappel-card">
+      <div class="rappel-card-title">✅ CONSEILS — La réussite c'est VOUS</div>
+      <div class="rappel-card-text">Notez chaque jour le détail de vos menus à venir avec le type <strong>GP</strong> ou <strong>PL</strong>. Marie-Laure corrige et valide avant que vous les prépariez.</div>
+    </div>
+    <div class="rappel-card">
+      <div class="rappel-card-title">⏰ RAPPEL — Mensurations semaine précédente</div>
+      <div class="rappel-card-text">Renseignez vos mensurations en haut de page. Pesez-vous <strong>le matin au levé</strong>, à jeun, avant de vous habiller, toujours dans les mêmes conditions.</div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ══ BANDEAU BAS ═══════════════════════════════════════════════ -->
+<div class="footer-bar">
+  <div class="footer-progress">
+    <div class="fp-text" id="fp-text">0/21 repas renseignés (0%)</div>
+    <div class="fp-bar-wrap"><div class="fp-bar" id="fp-bar" style="width:0%"></div></div>
+    <div class="fp-text" id="sync-status" style="opacity:0.6;">—</div>
+  </div>
+  <div class="footer-actions">
+    <button class="fb-btn btn-save"    onclick="saveData(); showToast('✅ Sauvegardé !')">💾 Sauvegarder</button>
+    <button class="fb-btn btn-print"   onclick="window.print()">🖨 Imprimer</button>
+    <button class="fb-btn btn-share"   onclick="openShareModal()">🔗 Partager avec Marie-Laure</button>
+    <button class="fb-btn btn-urgence" onclick="openUrgenceModal()">🚨 Message urgent</button>
+    <button class="fb-btn btn-reset"   onclick="confirmReset()">↺ Nouvelle semaine</button>
+  </div>
+</div>
+
+<!-- ══ MODALE PROFIL ══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-profile">
+  <div class="modal-box">
+    <div class="modal-title">👤 Profil de la cliente</div>
+    <div class="modal-sub">Ces informations sont sauvegardées une seule fois sur votre appareil. Elles s'affichent en permanence dans le bandeau supérieur.</div>
+    <div class="modal-grid">
+      <div class="modal-field full">
+        <label class="modal-label">Prénom et Nom</label>
+        <input class="modal-input" type="text" id="inp-nom" placeholder="Marie Dupont">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Date début méthode</label>
+        <input class="modal-input" type="date" id="inp-debut">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Poids initial (kg)</label>
+        <input class="modal-input" type="number" step="0.1" id="inp-poids-init" placeholder="ex: 78.5">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label">Poids souhaité (kg)</label>
+        <input class="modal-input" type="number" step="0.1" id="inp-poids-obj" placeholder="ex: 62.0">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeProfileModal()">Annuler</button>
+      <button class="btn-modal-save"   onclick="saveProfile()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODALE PARTAGE ══════════════════════════════════════════════ -->
+<div class="modal-overlay share-modal" id="modal-share">
+  <div class="modal-box">
+    <div class="modal-title">🔗 Partager avec Marie-Laure</div>
+    <div class="modal-sub">Un lien unique contient toutes vos données de la semaine. Envoyez-le à Marie-Laure par le canal de votre choix — email, SMS, WhatsApp…</div>
+    <div class="share-url-wrap">
+      <input class="share-url-input" type="text" id="share-url" readonly>
+      <button class="btn-copy" onclick="copyShareUrl()">📋 Copier</button>
+    </div>
+    <a class="share-mailto-btn" id="share-mailto" href="#" target="_blank">
+      📧 Ouvrir dans ma messagerie → recettes@methode-igbas.fr
+    </a>
+    <div class="share-hint">
+      💡 Le lien encode vos menus de la semaine. Marie-Laure peut l'ouvrir dans son navigateur pour voir et commenter votre suivi directement.<br>
+      🔒 Vos données ne quittent pas votre appareil — elles sont incluses dans le lien lui-même.
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeShareModal()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODALE URGENCE ══════════════════════════════════════════════ -->
+<div class="modal-overlay urgence-modal" id="modal-urgence">
+  <div class="modal-box">
+    <div class="modal-title urgence-title">🚨 Message urgent à Marie-Laure</div>
+    <div class="modal-sub">Besoin d'un conseil rapide ? Un doute sur un aliment, une situation particulière ? Envoyez un message direct à Marie-Laure.</div>
+    <textarea class="urgence-ta" id="urgence-msg" placeholder="Décrivez votre question ou situation ici..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeUrgenceModal()">Annuler</button>
+      <button class="btn-urgence-send" onclick="sendUrgence()">🚨 Envoyer maintenant</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══ JAVASCRIPT ══════════════════════════════════════════════════ -->
+<script>
+const JOURS = [
+  { nom:"DIMANCHE",  emoji:"🌿" },
+  { nom:"LUNDI",     emoji:"💪" },
+  { nom:"MARDI",     emoji:"🥗" },
+  { nom:"MERCREDI",  emoji:"⚡" },
+  { nom:"JEUDI",     emoji:"🌟" },
+  { nom:"VENDREDI",  emoji:"🎉" },
+  { nom:"SAMEDI",    emoji:"📅", samedi:true },
+];
+const REPAS  = [{key:"pdj",label:"🌅 Petit-déjeuner"},{key:"dej",label:"☀️ Déjeuner"},{key:"din",label:"🌙 Dîner"}];
+const MORALS = ["😞","😐","🙂","😊","🤩"];
+const MORAL_LABELS = ["Difficile","Neutre","Bien","Très bien","Excellent"];
+const KEY_DATA    = "igbas_suivi_v3_data";
+const KEY_PROFILE = "igbas_suivi_v3_profile";
+
+// ── Code client (base commune) ──────────────────────────────────────
+// Le code est transmis dans l'URL par l'écran "Espace Clients" existant,
+// ex : .../08_MENU_IGBas_v3.html?code=ABC123
+const CLIENT_CODE = new URLSearchParams(window.location.search).get("code");
+const KEY_DATA_LOCAL    = CLIENT_CODE ? `igbas_suivi_v3_data_${CLIENT_CODE}`    : KEY_DATA;
+const KEY_PROFILE_LOCAL = CLIENT_CODE ? `igbas_suivi_v3_profile_${CLIENT_CODE}` : KEY_PROFILE;
+
+function apiUrl(kind) {
+  // kind: "semainier" ou "profil"
+  return `/api/client/${encodeURIComponent(CLIENT_CODE)}/${kind}`;
+}
+function setSyncStatus(txt) {
+  const el = document.getElementById("sync-status");
+  if (el) el.textContent = txt;
+}
+
+// ── Sauvegarde : base commune si un code est présent, sinon local ──
+async function persist(kind, data) {
+  const key = kind === "semainier" ? KEY_DATA_LOCAL : KEY_PROFILE_LOCAL;
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
+  if (!CLIENT_CODE) { setSyncStatus("💾 Mode local (aucun code client dans l'URL)"); return; }
+  try {
+    const res = await fetch(apiUrl(kind), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error("réponse API " + res.status);
+    setSyncStatus("☁️ Synchronisé — code " + CLIENT_CODE);
+  } catch(e) {
+    setSyncStatus("⚠️ Non synchronisé (sauvegardé en local seulement)");
+  }
+}
+
+// ── Lecture : base commune si un code est présent, sinon local ─────
+async function fetchRemote(kind) {
+  if (!CLIENT_CODE) return null;
+  try {
+    const res = await fetch(apiUrl(kind));
+    if (!res.ok) throw new Error("réponse API " + res.status);
+    const json = await res.json();
+    return json || null;
+  } catch(e) {
+    return null; // API pas encore déployée / hors-ligne → on retombe sur le local
+  }
+}
+
+// ── Build UI ────────────────────────────────────────────────────
+function buildDays() {
+  const c = document.getElementById("days-container");
+  c.innerHTML = "";
+  JOURS.forEach((j, idx) => {
+    const card = document.createElement("div");
+    card.className = "day-card" + (j.samedi ? " samedi" : "");
+    card.id = `card-${idx}`;
+
+    // Header
+    card.innerHTML = `
+      <div class="day-header" onclick="toggleDay(event,${idx})">
+        <span class="day-emoji">${j.emoji}</span>
+        <span class="day-name">${j.nom}</span>
+        <div class="day-date-wrap">
+          <label>Le :</label>
+          <input type="date" class="day-date" id="d-date-${idx}" onchange="saveData()">
+        </div>
+        <span class="day-chevron">▼</span>
+      </div>
+      <div class="day-body">
+        ${REPAS.map(r => `
+          <div class="meal-block">
+            <div class="meal-title">${r.label}</div>
+            <div class="gp-pl">
+              <button class="toggle-btn gp-btn" id="gp-${idx}-${r.key}" onclick="toggleGPPL(${idx},'${r.key}','GP')">GP</button>
+              <button class="toggle-btn pl-btn" id="pl-${idx}-${r.key}" onclick="toggleGPPL(${idx},'${r.key}','PL')">PL</button>
+            </div>
+            <textarea class="meal-ta" id="ta-${idx}-${r.key}" placeholder="Menu prévu..." rows="3" oninput="saveData();updateProgress()"></textarea>
+          </div>`).join('')}
+        <div class="side-block">
+          <div class="side-title">🍎 Grignotage</div>
+          <textarea class="meal-ta" id="grig-${idx}" placeholder="Encas..." rows="2" style="min-height:44px" oninput="saveData()"></textarea>
+          <div class="side-title" style="margin-top:4px">😊 Moral</div>
+          <div class="moral-row">
+            ${MORALS.map((e,mi)=>`<button class="moral-btn" id="moral-${idx}-${mi}" onclick="setMoral(${idx},${mi})" title="${MORAL_LABELS[mi]}">${e}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="ml-row">
+        <div class="ml-label">💬 Commentaire Marie-Laure :</div>
+        <textarea class="ml-ta" id="ml-${idx}" placeholder="Corrections et conseils de Marie-Laure…" rows="1" oninput="saveData()"></textarea>
+      </div>`;
+    c.appendChild(card);
+  });
+}
+
+function toggleDay(e, idx) {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "BUTTON") return;
+  document.getElementById(`card-${idx}`).classList.toggle("collapsed");
+}
+
+// ── GP/PL ────────────────────────────────────────────────────────
+function toggleGPPL(idx, key, type) {
+  const gp = document.getElementById(`gp-${idx}-${key}`);
+  const pl = document.getElementById(`pl-${idx}-${key}`);
+  if (type === "GP") { const a = gp.classList.contains("on"); gp.classList.toggle("on",!a); pl.classList.remove("on"); }
+  else               { const a = pl.classList.contains("on"); pl.classList.toggle("on",!a); gp.classList.remove("on"); }
+  saveData();
+}
+
+// ── Moral ────────────────────────────────────────────────────────
+function setMoral(idx, mi) {
+  MORALS.forEach((_,i) => document.getElementById(`moral-${idx}-${i}`)?.classList.toggle("on", i===mi));
+  saveData();
+}
+
+// ── Progress ─────────────────────────────────────────────────────
+function updateProgress() {
+  let filled = 0, total = JOURS.length * 3;
+  JOURS.forEach((_,i) => REPAS.forEach(r => { if(document.getElementById(`ta-${i}-${r.key}`)?.value.trim()) filled++; }));
+  const pct = Math.round(filled/total*100);
+  document.getElementById("fp-bar").style.width = pct+"%";
+  document.getElementById("fp-text").textContent = `${filled}/${total} repas renseignés (${pct}%)`;
+}
+
+// ── Auto end-date (semaine = 7 jours) ────────────────────────────
+function autofillEndDate() {
+  const v = document.getElementById("sem-debut").value;
+  if (!v) return;
+  const d = new Date(v); d.setDate(d.getDate()+6);
+  document.getElementById("sem-fin").value = d.toISOString().slice(0,10);
+  // Pré-remplir les dates des jours si vides
+  JOURS.forEach((j,i) => {
+    const el = document.getElementById(`d-date-${i}`);
+    if (el && !el.value) {
+      const dd = new Date(v); dd.setDate(dd.getDate()+i);
+      el.value = dd.toISOString().slice(0,10);
+    }
+  });
+  saveData();
+}
+
+// ── Progression poids ────────────────────────────────────────────
+function updateProgression() {
+  try {
+    const prof = JSON.parse(localStorage.getItem(KEY_PROFILE_LOCAL)||"{}");
+    const init = parseFloat(prof.poidsInit);
+    const cur  = parseFloat(document.getElementById("mens-poids").value);
+    const obj  = parseFloat(prof.poidsObj);
+    const el   = document.getElementById("disp-progression");
+    if (!init || !cur || !obj) { el.textContent = "—"; return; }
+    const perdu = (init - cur).toFixed(1);
+    const reste = (cur - obj).toFixed(1);
+    el.textContent = `−${perdu} kg (reste ${reste} kg)`;
+    el.style.color = reste <= 0 ? "#FFD54F" : "#A5D6A7";
+  } catch(e) {}
+}
+
+// ── Collect / Apply ───────────────────────────────────────────────
+function collectData() {
+  const d = {
+    semDebut: document.getElementById("sem-debut").value,
+    semFin:   document.getElementById("sem-fin").value,
+    mensPoids:   document.getElementById("mens-poids").value,
+    mensTaille:  document.getElementById("mens-taille").value,
+    mensHanches: document.getElementById("mens-hanches").value,
+    mensCuisses: document.getElementById("mens-cuisses").value,
+    bilDebut: document.getElementById("bil-debut").value,
+    bilFin:   document.getElementById("bil-fin").value,
+    bilEvol:  document.getElementById("bil-evol").value,
+    bilObj:   document.getElementById("bil-obj").value,
+    jours: {}
+  };
+  JOURS.forEach((_,i) => {
+    const j = {
+      date: document.getElementById(`d-date-${i}`)?.value || "",
+      moral: null,
+      grignotage: document.getElementById(`grig-${i}`)?.value || "",
+      ml: document.getElementById(`ml-${i}`)?.value || "",
+      repas: {}
+    };
+    MORALS.forEach((_,mi) => { if(document.getElementById(`moral-${i}-${mi}`)?.classList.contains("on")) j.moral = mi; });
+    REPAS.forEach(r => {
+      j.repas[r.key] = {
+        txt: document.getElementById(`ta-${i}-${r.key}`)?.value || "",
+        gp:  document.getElementById(`gp-${i}-${r.key}`)?.classList.contains("on") || false,
+        pl:  document.getElementById(`pl-${i}-${r.key}`)?.classList.contains("on") || false,
+      };
+    });
+    d.jours[i] = j;
+  });
+  return d;
+}
+
+function applyData(d) {
+  if (!d) return;
+  const sv = (id, v) => { const el = document.getElementById(id); if(el && v !== undefined) el.value = v; };
+  sv("sem-debut", d.semDebut); sv("sem-fin", d.semFin);
+  sv("mens-poids", d.mensPoids); sv("mens-taille", d.mensTaille);
+  sv("mens-hanches", d.mensHanches); sv("mens-cuisses", d.mensCuisses);
+  sv("bil-debut", d.bilDebut); sv("bil-fin", d.bilFin);
+  sv("bil-evol", d.bilEvol); sv("bil-obj", d.bilObj);
+  JOURS.forEach((_,i) => {
+    const j = d.jours?.[i]; if (!j) return;
+    sv(`d-date-${i}`, j.date);
+    sv(`grig-${i}`, j.grignotage); sv(`ml-${i}`, j.ml);
+    if (j.moral !== null && j.moral !== undefined) setMoral(i, j.moral);
+    REPAS.forEach(r => {
+      const rep = j.repas?.[r.key]; if (!rep) return;
+      sv(`ta-${i}-${r.key}`, rep.txt);
+      if (rep.gp) document.getElementById(`gp-${i}-${r.key}`)?.classList.add("on");
+      if (rep.pl) document.getElementById(`pl-${i}-${r.key}`)?.classList.add("on");
+    });
+  });
+}
+
+// ── Save / Load ───────────────────────────────────────────────────
+function saveData() {
+  const data = collectData();
+  persist("semainier", data);
+  updateProgress(); updateProgression();
+}
+async function loadData() {
+  // 1) on tente la base commune si un code client est présent
+  const remote = CLIENT_CODE ? await fetchRemote("semainier") : null;
+  if (remote) {
+    applyData(remote);
+    setSyncStatus("☁️ Chargé depuis la base — code " + CLIENT_CODE);
+  } else {
+    try {
+      const raw = localStorage.getItem(KEY_DATA_LOCAL);
+      if (raw) applyData(JSON.parse(raw));
+    } catch(e){}
+    setSyncStatus(CLIENT_CODE ? "⚠️ Base non disponible — dernière version locale chargée" : "💾 Mode local (aucun code client dans l'URL)");
+  }
+  updateProgress();
+}
+
+// ── Profil ────────────────────────────────────────────────────────
+function openProfileModal() {
+  try {
+    const p = JSON.parse(localStorage.getItem(KEY_PROFILE_LOCAL)||"{}");
+    document.getElementById("inp-nom").value        = p.nom || "";
+    document.getElementById("inp-debut").value      = p.debut || "";
+    document.getElementById("inp-poids-init").value = p.poidsInit || "";
+    document.getElementById("inp-poids-obj").value  = p.poidsObj || "";
+  } catch(e){}
+  document.getElementById("modal-profile").classList.add("open");
+}
+function closeProfileModal() { document.getElementById("modal-profile").classList.remove("open"); }
+function saveProfile() {
+  const p = {
+    nom:       document.getElementById("inp-nom").value,
+    debut:     document.getElementById("inp-debut").value,
+    poidsInit: document.getElementById("inp-poids-init").value,
+    poidsObj:  document.getElementById("inp-poids-obj").value,
+  };
+  persist("profil", p);
+  applyProfile(p);
+  closeProfileModal();
+  showToast("✅ Profil enregistré !");
+}
+function applyProfile(p) {
+  if (!p) return;
+  document.getElementById("disp-nom").textContent       = p.nom       || "— non renseigné —";
+  document.getElementById("disp-debut").textContent     = p.debut     ? formatDate(p.debut) : "—";
+  document.getElementById("disp-poids-init").textContent = p.poidsInit ? p.poidsInit+" kg" : "— kg";
+  document.getElementById("disp-poids-obj").textContent  = p.poidsObj  ? p.poidsObj+" kg"  : "— kg";
+  updateProgression();
+}
+function formatDate(iso) {
+  if (!iso) return "—";
+  const [y,m,d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+async function loadProfile() {
+  const remote = CLIENT_CODE ? await fetchRemote("profil") : null;
+  if (remote) { applyProfile(remote); return; }
+  try { applyProfile(JSON.parse(localStorage.getItem(KEY_PROFILE_LOCAL)||"{}")); } catch(e){}
+}
+
+// ── Partage ───────────────────────────────────────────────────────
+function openShareModal() {
+  const data = collectData();
+  const json = JSON.stringify(data);
+  const b64  = btoa(unescape(encodeURIComponent(json)));
+  // URL avec fragment (#) — les données ne sont pas envoyées au serveur
+  const url  = window.location.href.split("#")[0] + "#share=" + b64;
+
+  document.getElementById("share-url").value = url;
+
+  const prof = (() => { try { return JSON.parse(localStorage.getItem(KEY_PROFILE_LOCAL)||"{}"); } catch(e){ return {}; } })();
+  const semaine = data.semDebut ? `semaine du ${formatDate(data.semDebut)}` : "suivi semaine";
+  const sujet   = encodeURIComponent(`IGBas® — ${prof.nom || "Cliente"} — ${semaine}`);
+  const corps   = encodeURIComponent(
+    `Bonjour Marie-Laure,\n\nVeuillez trouver ci-dessous le lien de mon suivi menus IGBas® pour la ${semaine}.\n\n${url}\n\nCordialement,\n${prof.nom || ""}`
+  );
+  document.getElementById("share-mailto").href =
+    `mailto:recettes@methode-igbas.fr?subject=${sujet}&body=${corps}`;
+
+  document.getElementById("modal-share").classList.add("open");
+}
+function closeShareModal() { document.getElementById("modal-share").classList.remove("open"); }
+function copyShareUrl() {
+  const url = document.getElementById("share-url").value;
+  navigator.clipboard.writeText(url).then(() => showToast("📋 Lien copié !")).catch(() => {
+    document.getElementById("share-url").select();
+    document.execCommand("copy");
+    showToast("📋 Lien copié !");
+  });
+}
+
+// ── Urgence ───────────────────────────────────────────────────────
+function openUrgenceModal()  { document.getElementById("modal-urgence").classList.add("open"); }
+function closeUrgenceModal() { document.getElementById("modal-urgence").classList.remove("open"); }
+function sendUrgence() {
+  const msg  = document.getElementById("urgence-msg").value.trim();
+  if (!msg) { showToast("✏️ Écrivez votre message avant d'envoyer", true); return; }
+  const prof = (() => { try { return JSON.parse(localStorage.getItem(KEY_PROFILE_LOCAL)||"{}"); } catch(e){ return {}; } })();
+  const sujet = encodeURIComponent(`🚨 URGENT IGBas® — ${prof.nom || "Cliente"}`);
+  const corps = encodeURIComponent(`Bonjour Marie-Laure,\n\n${msg}\n\nCordialement,\n${prof.nom || "Votre cliente"}`);
+  window.location.href = `mailto:recettes@methode-igbas.fr?subject=${sujet}&body=${corps}`;
+  closeUrgenceModal();
+  document.getElementById("urgence-msg").value = "";
+}
+
+// ── Lecture du lien de partage ────────────────────────────────────
+function tryLoadFromHash() {
+  const hash = window.location.hash;
+  if (!hash.startsWith("#share=")) return false;
+  try {
+    const b64  = hash.slice(7);
+    const json = decodeURIComponent(escape(atob(b64)));
+    const data = JSON.parse(json);
+    applyData(data);
+    showToast("📥 Suivi chargé depuis le lien partagé");
+    // Retirer le hash de l'URL sans recharger
+    history.replaceState(null, "", window.location.pathname);
+    return true;
+  } catch(e) { return false; }
+}
+
+// ── Toast ─────────────────────────────────────────────────────────
+function showToast(msg, isError=false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast" + (isError ? " error" : "");
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+// ── Reset ─────────────────────────────────────────────────────────
+function confirmReset() {
+  if (confirm("Démarrer une nouvelle semaine ? Les données de la semaine actuelle seront effacées (le profil est conservé).")) {
+    localStorage.removeItem(KEY_DATA_LOCAL);
+    location.reload();
+  }
+}
+
+// ── Default week ──────────────────────────────────────────────────
+function defaultWeek() {
+  const today = new Date();
+  const day   = today.getDay();
+  const diff  = day === 0 ? 0 : 1 - day; // Commence dimanche
+  const sun   = new Date(today); sun.setDate(today.getDate() + diff);
+  const debEl = document.getElementById("sem-debut");
+  if (!debEl.value) {
+    debEl.value = sun.toISOString().slice(0,10);
+    autofillEndDate();
+  }
+}
+
+// ── Fermer modales en cliquant overlay ────────────────────────────
+document.querySelectorAll(".modal-overlay").forEach(el => {
+  el.addEventListener("click", e => { if (e.target === el) el.classList.remove("open"); });
+});
+
+// ── Ctrl+S ────────────────────────────────────────────────────────
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey||e.metaKey) && e.key==="s") { e.preventDefault(); saveData(); showToast("✅ Sauvegardé !"); }
+});
+
+// ── Init ──────────────────────────────────────────────────────────
+document.getElementById("disp-code").textContent = CLIENT_CODE || "aucun (mode local)";
+buildDays();
+loadProfile();
+const loadedFromShare = tryLoadFromHash();
+if (!loadedFromShare) loadData();
+defaultWeek();
+</script>
+</body>
+</html>
