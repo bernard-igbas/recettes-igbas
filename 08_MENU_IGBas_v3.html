@@ -3,6 +3,15 @@
 <head>
 <!--
   CHANGELOG
+  v3.3 - 2026-09-25 : anti-cache — la lecture et l'écriture vers la base
+       commune indiquent désormais explicitement "ne pas mettre en cache"
+       (côté fonction et côté page), pour éliminer tout risque qu'une
+       ancienne réponse mise en cache soit resservie au lieu d'aller
+       consulter la base à chaque fois.
+  v3.2 - 2026-09-25 : le message de statut prévient désormais que la base
+       KV peut mettre jusqu'à une minute avant qu'une donnée tout juste
+       enregistrée apparaisse si on recharge immédiatement (délai de
+       propagation propre à Cloudflare KV, pas une perte de données).
   v3.1 - 2026-09-25 : correctif anti-collision — les envois vers la base
        commune sont désormais regroupés (0,7s après la dernière frappe) et
        envoyés un par un, pour empêcher qu'un envoi plus ancien écrase un
@@ -17,7 +26,7 @@
        par lien encodé en base64 vers Marie-Laure.
 -->
 <meta charset="UTF-8">
-<meta name="app-version" content="v3.1-2026-09-25">
+<meta name="app-version" content="v3.3-2026-09-25">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IGBas® — Suivi Menus Hebdomadaire</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
@@ -549,7 +558,7 @@ input[type="date"].day-date:focus { outline: none; border-color: var(--green); }
     <div class="hf-brand">
       <div class="hf-brand-name">IGBas®</div>
       <div class="hf-brand-tagline">Méthode 3+1 — Index Glycémique</div>
-      <div class="hf-brand-tagline" style="opacity:0.4;margin-top:2px;">v3.1-2026-09-25</div>
+      <div class="hf-brand-tagline" style="opacity:0.4;margin-top:2px;">v3.3-2026-09-25</div>
     </div>
     <div class="hf-profile" id="hf-profile">
       <div class="hf-field">
@@ -816,10 +825,11 @@ async function flushRemote(kind) {
     const res = await fetch(apiUrl(kind), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
+      cache: "no-store"
     });
     if (!res.ok) throw new Error("réponse API " + res.status);
-    setSyncStatus("☁️ Synchronisé — code " + CLIENT_CODE);
+    setSyncStatus("☁️ Synchronisé — code " + CLIENT_CODE + " (jusqu'à 1 min avant d'apparaître si vous rechargez tout de suite)");
   } catch(e) {
     setSyncStatus("⚠️ Non synchronisé (sauvegardé en local seulement)");
   }
@@ -831,7 +841,7 @@ async function flushRemote(kind) {
 async function fetchRemote(kind) {
   if (!CLIENT_CODE) return null;
   try {
-    const res = await fetch(apiUrl(kind));
+    const res = await fetch(apiUrl(kind), { cache: "no-store" });
     if (!res.ok) throw new Error("réponse API " + res.status);
     const json = await res.json();
     return json || null;
