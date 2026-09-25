@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <!--
-  recettes-igbas — v34.5 — 23/09/2026 — Validé
+  recettes-igbas — v34.6 — 25/09/2026 — Validé par Bernard : EN ATTENTE
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -168,9 +168,16 @@
       modification... » était en vert foncé sur le bandeau vert foncé du haut de
       fiche, donc quasi illisible. Passée en blanc légèrement transparent, comme
       le reste du texte de ce bandeau
+    - v34.6 (25/09/2026) : CORRECTIF — un aliment (ex. « Farine Lupin ») restait
+      introuvable en tapant son nom complet dans la recherche d'ingrédient, alors
+      qu'un seul des mots (« Lupin ») le retrouvait. Cause probable : une espace
+      irrégulière laissée par une migration de données. La recherche compare
+      désormais mot par mot (chaque mot tapé doit être présent, dans n'importe
+      quel ordre) au lieu du texte tapé pris comme un seul bloc, insensible à ce
+      genre d'espace
   Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026), v33 (22/09/2026).
 -->
-<meta name="app-version" content="v34.5-2026-09-23">
+<meta name="app-version" content="v34.6-2026-09-25">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Recettes IGBas — LaTABLE SiDSanté</title>
@@ -406,7 +413,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.5 &bull; 23/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.6 &bull; 25/09/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -1279,7 +1286,14 @@ function renderIngSuggest(){
   const q = document.getElementById('ingSearch').value.toLowerCase().trim();
   const box = document.getElementById('ingSuggest');
   if(!q){ box.style.display='none'; box.innerHTML=''; return; }
-  const matches = ALIMENTS.filter(a=>a.nom.toLowerCase().includes(q)).slice(0,15);
+  // v34.6 — comparaison mot par mot (chaque mot tapé doit se retrouver dans le
+  // nom, n'importe où, dans n'importe quel ordre) : insensible à une espace
+  // irrégulière entre deux mots du nom (ex. venant d'une migration de données).
+  const motsRecherche = q.split(/\s+/).filter(Boolean);
+  const matches = ALIMENTS.filter(a=>{
+    const nom = a.nom.toLowerCase();
+    return motsRecherche.every(mot => nom.includes(mot));
+  }).slice(0,15);
   if(!matches.length){ box.style.display='none'; return; }
   box.innerHTML = matches.map(a=>`<div onclick="pickIngredient('${escapeAttr(a.nom)}', ${a.ig})">
     <span>${escapeHtml(a.nom)}</span><span class="ig-pill ${igCls(a.ig)}">${a.ig}</span>
