@@ -3,6 +3,11 @@
 <head>
 <!--
   CHANGELOG
+  v3.1 - 2026-09-25 : correctif anti-collision — les envois vers la base
+       commune sont désormais regroupés (0,7s après la dernière frappe) et
+       envoyés un par un, pour empêcher qu'un envoi plus ancien écrase un
+       envoi plus récent quand on tape vite. La sauvegarde locale reste
+       instantanée à chaque frappe.
   v3 - 2026-09-25 : rattachement à la base commune (Cloudflare KV) via l'API
        /api/client/{code}/semainier, à la place du localStorage seul.
        Le code client est lu dans l'URL (?code=...), comme sur l'écran
@@ -12,7 +17,7 @@
        par lien encodé en base64 vers Marie-Laure.
 -->
 <meta charset="UTF-8">
-<meta name="app-version" content="v3-2026-09-25">
+<meta name="app-version" content="v3.1-2026-09-25">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IGBas® — Suivi Menus Hebdomadaire</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
@@ -544,7 +549,7 @@ input[type="date"].day-date:focus { outline: none; border-color: var(--green); }
     <div class="hf-brand">
       <div class="hf-brand-name">IGBas®</div>
       <div class="hf-brand-tagline">Méthode 3+1 — Index Glycémique</div>
-      <div class="hf-brand-tagline" style="opacity:0.4;margin-top:2px;">v3-2026-09-25</div>
+      <div class="hf-brand-tagline" style="opacity:0.4;margin-top:2px;">v3.1-2026-09-25</div>
     </div>
     <div class="hf-profile" id="hf-profile">
       <div class="hf-field">
@@ -784,11 +789,29 @@ function setSyncStatus(txt) {
   if (el) el.textContent = txt;
 }
 
-// ── Sauvegarde : base commune si un code est présent, sinon local ──
-async function persist(kind, data) {
+// ── Sauvegarde : locale immédiate, envoi distant regroupé (anti-collision) ──
+const _pendingRemote = {};
+const _remoteTimer = {};
+const _remoteBusy = {};
+
+function persist(kind, data) {
   const key = kind === "semainier" ? KEY_DATA_LOCAL : KEY_PROFILE_LOCAL;
   try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
   if (!CLIENT_CODE) { setSyncStatus("💾 Mode local (aucun code client dans l'URL)"); return; }
+  // On ne garde que la dernière version à envoyer, et on attend une courte
+  // pause avant d'envoyer, pour éviter que plusieurs envois se croisent et
+  // qu'un envoi plus ancien écrase un envoi plus récent.
+  _pendingRemote[kind] = data;
+  clearTimeout(_remoteTimer[kind]);
+  _remoteTimer[kind] = setTimeout(() => flushRemote(kind), 700);
+}
+
+async function flushRemote(kind) {
+  if (_remoteBusy[kind]) { _remoteTimer[kind] = setTimeout(() => flushRemote(kind), 300); return; }
+  const data = _pendingRemote[kind];
+  if (data === undefined) return;
+  delete _pendingRemote[kind];
+  _remoteBusy[kind] = true;
   try {
     const res = await fetch(apiUrl(kind), {
       method: "PUT",
@@ -800,6 +823,8 @@ async function persist(kind, data) {
   } catch(e) {
     setSyncStatus("⚠️ Non synchronisé (sauvegardé en local seulement)");
   }
+  _remoteBusy[kind] = false;
+  if (_pendingRemote[kind] !== undefined) flushRemote(kind); // une version plus récente est arrivée entre-temps
 }
 
 // ── Lecture : base commune si un code est présent, sinon local ─────
