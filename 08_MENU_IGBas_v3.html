@@ -3,6 +3,14 @@
 <head>
 <!--
   CHANGELOG
+  v3.4 - 2026-09-25 : correctif de la vraie cause de perte de données —
+       au chargement, la page remplissait automatiquement la date de
+       semaine (si vide) et déclenchait un enregistrement AVANT d'avoir
+       fini de récupérer les données existantes dans la base, écrasant
+       silencieusement le contenu réel avec une version vide quelques
+       instants après l'ouverture. Le chargement est maintenant fait
+       dans l'ordre : d'abord récupérer les données existantes, puis
+       seulement remplir les valeurs par défaut si elles manquent encore.
   v3.3 - 2026-09-25 : anti-cache — la lecture et l'écriture vers la base
        commune indiquent désormais explicitement "ne pas mettre en cache"
        (côté fonction et côté page), pour éliminer tout risque qu'une
@@ -26,7 +34,7 @@
        par lien encodé en base64 vers Marie-Laure.
 -->
 <meta charset="UTF-8">
-<meta name="app-version" content="v3.3-2026-09-25">
+<meta name="app-version" content="v3.4-2026-09-25">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IGBas® — Suivi Menus Hebdomadaire</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
@@ -558,7 +566,7 @@ input[type="date"].day-date:focus { outline: none; border-color: var(--green); }
     <div class="hf-brand">
       <div class="hf-brand-name">IGBas®</div>
       <div class="hf-brand-tagline">Méthode 3+1 — Index Glycémique</div>
-      <div class="hf-brand-tagline" style="opacity:0.4;margin-top:2px;">v3.3-2026-09-25</div>
+      <div class="hf-brand-tagline" style="opacity:0.4;margin-top:2px;">v3.4-2026-09-25</div>
     </div>
     <div class="hf-profile" id="hf-profile">
       <div class="hf-field">
@@ -1185,11 +1193,16 @@ document.addEventListener("keydown", e => {
 
 // ── Init ──────────────────────────────────────────────────────────
 document.getElementById("disp-code").textContent = CLIENT_CODE || "aucun (mode local)";
-buildDays();
-loadProfile();
-const loadedFromShare = tryLoadFromHash();
-if (!loadedFromShare) loadData();
-defaultWeek();
+(async function initPage() {
+  buildDays();
+  await loadProfile();
+  const loadedFromShare = tryLoadFromHash();
+  if (!loadedFromShare) await loadData();
+  // defaultWeek() ne doit s'exécuter qu'une fois les vraies données
+  // (locales ou distantes) posées — sinon elle déclenche un enregistrement
+  // vide qui écrase la base avant que le chargement soit terminé.
+  defaultWeek();
+})();
 </script>
 </body>
 </html>
