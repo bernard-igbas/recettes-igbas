@@ -1,11 +1,18 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+<meta charset="UTF-8">
 <!--
-  recettes-igbas — v34.8 — 03/10/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v34.9 — 02/11/2026 — Validé par Bernard : ok
+  v34.9 (02/11/2026) : FORMATS STORY ET RÉEL. Deux boutons réservés à l'administration (« Format Story » et « Format Réel »)
+  sous « Télécharger la recette en PDF » sur chaque fiche. Story = images 1080×1920 (couverture, ingrédients, étapes, fin),
+  téléchargeables une à une ou toutes ensemble. Réel = vidéo verticale animée, fabriquée par le navigateur (MP4 sous Safari et
+  Chrome récents). Le texte vient de la fiche, rien à ressaisir ; les textes restent dans la zone sûre de Meta. Aucune autre
+  partie de l'application n'est modifiée. Rangement : la balise charset passe en tout début de head (le long commentaire
+  d'en-tête la repoussait trop loin).
   v34.8 (03/10/2026) : les icônes sont maintenant de vrais fichiers (apple-touch-icon.png, icon-192.png, icon-512.png, manifest.json) pour le Dock du Mac, rien d'autre ne change.
   v34.7 (02/10/2026) : logo des mains (Bien-être et Liberté) comme icône de la page et du Dock du Mac, rien d'autre ne change.
-  Précédent : v34.6 — 25/09/2026
+  Précédent : v34.8 — 03/10/2026
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -180,8 +187,7 @@
       genre d'espace
   Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026), v33 (22/09/2026).
 -->
-<meta name="app-version" content="v34.8-2026-10-03">
-<meta charset="UTF-8">
+<meta name="app-version" content="v34.9-2026-11-02">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.json">
@@ -411,6 +417,27 @@
     .steps{margin-bottom:12px;}
     .steps li{margin-bottom:8px;}
   }
+  /* v34.9 : formats Story / Réel (admin) */
+  .fmt-row{display:flex;gap:10px;margin-top:12px;}
+  .fmt-btn{flex:1;background:var(--paper);color:var(--herb-dark);border:2px solid var(--herb);border-radius:14px;padding:15px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
+  #fmtOverlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(34,48,29,.72);overflow:auto;padding:18px;}
+  #fmtOverlay.open{display:block;}
+  .fmt-box{max-width:900px;margin:0 auto;background:#fff;border-radius:18px;padding:22px;}
+  .fmt-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;}
+  #fmtTitre{font-size:22px;font-weight:800;color:var(--herb-dark);}
+  .fmt-close,.fmt-sec{background:var(--paper);color:var(--herb-dark);border:2px solid var(--line);border-radius:12px;padding:12px 18px;font-family:inherit;font-size:17px;font-weight:700;cursor:pointer;}
+  .fmt-sec{width:100%;margin-top:12px;}
+  .fmt-note{font-size:18px;line-height:1.6;color:var(--ink);margin:0 0 16px;}
+  .fmt-main{width:100%;background:var(--herb);color:#fff;border:none;border-radius:14px;padding:17px;font-family:inherit;font-size:20px;font-weight:700;cursor:pointer;}
+  .fmt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px;margin-top:18px;}
+  .fmt-card{border:1.5px solid var(--line);border-radius:14px;padding:10px;text-align:center;}
+  .fmt-card img{width:100%;border-radius:10px;display:block;margin-bottom:10px;}
+  .fmt-card button{width:100%;background:var(--paper);color:var(--herb-dark);border:2px solid var(--herb);border-radius:12px;padding:12px 6px;font-family:inherit;font-size:16px;font-weight:700;cursor:pointer;}
+  .fmt-bar{height:16px;border-radius:8px;background:var(--line);overflow:hidden;margin:12px 0;}
+  .fmt-bar>div{height:100%;width:0;background:var(--ochre);}
+  #fmtPreview{margin-top:16px;text-align:center;}
+  #fmtPreview canvas,#fmtPreview video{width:270px;max-width:100%;height:auto;border-radius:14px;background:#000;}
+  @media print{#fmtOverlay{display:none!important;}}
 </style>
 </head>
 <body>
@@ -419,7 +446,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.6 &bull; 25/09/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v34.9 &bull; 02/11/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -581,6 +608,13 @@
     </div>
   </div>
 
+</div>
+
+<div id="fmtOverlay" role="dialog" aria-modal="true">
+  <div class="fmt-box">
+    <div class="fmt-head"><div id="fmtTitre"></div><button class="fmt-close" onclick="fermerFormat()">Fermer</button></div>
+    <div id="fmtBody"></div>
+  </div>
 </div>
 
 <script>
@@ -1132,6 +1166,7 @@ function openDetail(id){
     </div>
     <div class="cta-bar">
       <button class="download-btn" onclick="window.print()">Télécharger la recette en PDF</button>
+      ${modeAdmin ? `<div class="fmt-row"><button class="fmt-btn" onclick="ouvrirFormat('${r.id}','story')">Format Story</button><button class="fmt-btn" onclick="ouvrirFormat('${r.id}','reel')">Format Réel</button></div>` : ''}
       ${modeAdmin ? `<button class="edit-btn" onclick="editRecette('${r.id}')">Modifier cette recette</button>
       <button class="delete-btn" onclick="supprimerRecette('${r.id}')">Supprimer cette recette</button>` : ''}
     </div>
@@ -1633,6 +1668,442 @@ afficherQuiEsTu();
 loadData();
 loadAliments();
 renderCatBar();
+
+// ===================== FORMATS STORY / RÉEL (v34.9) =====================
+// À partir d'une fiche recette, fabrique des images 1080×1920 (Story) ou une
+// vidéo verticale (Réel), entièrement dans le navigateur (canvas). Le texte
+// vient de la fiche : rien à ressaisir. Boutons réservés au mode admin.
+const FMT_W = 1080, FMT_H = 1920, FMT_MX = 80, FMT_TOP = 230, FMT_BOT = 1560;
+const FMT_FONT = '"DM Sans", Arial, sans-serif';
+const FMT_C = {cream:'#F4F7EF', ink:'#22301D', herb:'#3E5641', herbD:'#28362A', ochre:'#C98A2B', ochreD:'#A66F1E', line:'#DCE3D2', sand:'#F2D9A8'};
+const FMT_IG = {'ig-b':['#EAF3DE','#27500A'], 'ig-m':['#FAEEDA','#633806'], 'ig-e':['#FAECE7','#712B13'], 'ig-t':['#FCEBEB','#791F1F']};
+const FMT_BRAND = 'Bien-être & Liberté · Méthode 3+1 à IGBas®';
+
+const fmtCv = document.createElement('canvas');
+fmtCv.width = FMT_W; fmtCv.height = FMT_H;
+const fmtCtx = fmtCv.getContext('2d');
+let fmtR = null, fmtPhoto = null, fmtLogo = null, fmtPages = [];
+let fmtUrls = [], fmtVideoUrl = '', fmtStop = false, fmtBusy = false;
+
+function fmtRR(c,x,y,w,h,r){
+  c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath();
+}
+function fmtWrap(c,text,maxW){
+  const words = String(text||'').split(/\s+/).filter(Boolean), lines = [];
+  let cur = '';
+  words.forEach(w=>{
+    const t = cur ? cur+' '+w : w;
+    if(!cur || c.measureText(t).width <= maxW) cur = t; else { lines.push(cur); cur = w; }
+  });
+  if(cur) lines.push(cur);
+  return lines;
+}
+function fmtNbPersonnes(p){
+  p = String(p||'').trim();
+  if(!p) return '';
+  return /^\d+$/.test(p) ? p + (p==='1' ? ' personne' : ' personnes') : p;
+}
+function fmtSlug(){
+  return String((fmtR && fmtR.titre) || 'recette').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40) || 'recette';
+}
+function fmtNom(i){ return fmtSlug() + '-story-' + String(i+1).padStart(2,'0') + '.png'; }
+function fmtLoadImg(src){
+  return new Promise(res=>{
+    if(!src) return res(null);
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = ()=>res(im); im.onerror = ()=>res(null); im.src = src;
+  });
+}
+function fmtDrawPhoto(c,img,x,y,w,h,zoom){
+  const br = w/h, ir = img.width/img.height; let sw, sh;
+  if(ir > br){ sh = img.height; sw = sh*br; } else { sw = img.width; sh = sw/br; }
+  sw /= zoom; sh /= zoom;
+  c.save(); fmtRR(c,x,y,w,h,36); c.clip();
+  c.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,x,y,w,h);
+  c.restore();
+}
+function fmtDrawLogo(cx,cy,r){
+  const c = fmtCtx;
+  c.save(); c.beginPath(); c.arc(cx,cy,r+8,0,Math.PI*2); c.fillStyle = '#fff'; c.fill();
+  c.beginPath(); c.arc(cx,cy,r,0,Math.PI*2); c.clip();
+  c.drawImage(fmtLogo,cx-r,cy-r,2*r,2*r);
+  c.restore();
+}
+// Fait apparaître un élément (transparence + petite montée), selon rev(k)
+function fmtShow(c,rev,k,fn){
+  const s = rev(k);
+  if(s.a <= 0) return;
+  c.save(); c.globalAlpha = s.a; c.translate(0,s.dy); fn(); c.restore();
+}
+
+// ---------- Mise en page (une seule fois par recette) ----------
+function fmtBuild(r){
+  const c = fmtCtx, W = FMT_W - 2*FMT_MX, F = FMT_FONT;
+  const pages = [];
+  const ig = igMoyen(r.ingredients);
+
+  // Couverture
+  const hasPhoto = !!fmtPhoto;
+  const cover = {kind:'cover', dur:3.9, photoY:240, photoH:620};
+  const topAfter = hasPhoto ? cover.photoY + cover.photoH : (fmtLogo ? 620 : 330);
+  cover.tag = [r.categorie, r.sousCategorie].filter(Boolean).join(' · ');
+  c.font = '700 40px ' + F;
+  cover.tagW = Math.min(W, c.measureText(cover.tag).width + 64);
+  cover.tagY = topAfter + 56;
+  cover.titleTop = cover.tagY + 64 + 36;
+  let fs = hasPhoto ? 84 : 100, lines = [];
+  for(; fs >= 56; fs -= 4){
+    c.font = '800 ' + fs + 'px ' + F;
+    lines = fmtWrap(c, r.titre, W);
+    if(lines.length <= (hasPhoto ? 4 : 5) && cover.titleTop + lines.length*fs*1.12 + 192 <= 1590) break;
+  }
+  fs = Math.max(fs, 56);
+  cover.fs = fs; cover.lines = lines;
+  cover.metaTop = cover.titleTop + lines.length*fs*1.12 + 24;
+  cover.meta = [r.temps, fmtNbPersonnes(r.personnes)].filter(Boolean).join('  ·  ');
+  cover.ig = ig ? igLabel(ig) + ' (' + ig + ')' : '';
+  cover.igCls = igCls(ig);
+  pages.push(cover);
+
+  // Titre commun aux pages de liste (chaque image se comprend seule)
+  c.font = '800 54px ' + F;
+  const tLines = fmtWrap(c, r.titre, W);
+  if(tLines.length > 2){ tLines.length = 2; tLines[1] = tLines[1].replace(/\s+\S*$/,'') + '…'; }
+  const titleBase0 = FMT_TOP + 110;
+  const sepY = titleBase0 + (tLines.length-1)*62 + 28;
+  const listTop = sepY + 34;
+  const avail = FMT_BOT - listTop;
+
+  function measure(list, kind, f){
+    return list.map(it=>{
+      if(kind === 'ing'){
+        if(it.titre !== undefined){
+          c.font = '800 ' + (f+2) + 'px ' + F;
+          const ln = fmtWrap(c, it.titre, W);
+          return {t:'grp', lines:ln, fs:f+2, lh:(f+2)*1.25, h:ln.length*(f+2)*1.25 + 52};
+        }
+        const txt = ((it.qty||'') + ' ' + (it.nom||'') + (it.detail ? ' (' + it.detail + ')' : '')).trim();
+        c.font = '600 ' + f + 'px ' + F;
+        const ln = fmtWrap(c, txt, W - 130);
+        return {t:'ing', lines:ln, fs:f, lh:f*1.3, h:Math.max(ln.length*f*1.3, 56) + 30,
+                ig:(typeof it.ig === 'number' ? it.ig : null), cls:igCls(it.ig)};
+      }
+      c.font = '500 ' + f + 'px ' + F;
+      const ln = fmtWrap(c, it, W - 114);
+      return {t:'step', lines:ln, fs:f, lh:f*1.32, h:Math.max(84, ln.length*f*1.32) + 40, len:String(it).length};
+    });
+  }
+  function paginate(list, kind, label){
+    let items = [];
+    for(const f of [46,40,34,30]){ items = measure(list, kind, f); if(items.every(x=>x.h <= avail)) break; }
+    const out = []; let cur = [], y = 0;
+    items.forEach((it,i)=>{
+      const nxt = items[i+1];
+      const need = it.h + ((it.t === 'grp' && nxt) ? nxt.h : 0);
+      if(cur.length && y + need > avail){ out.push(cur); cur = []; y = 0; }
+      it.y = y; y += it.h; cur.push(it);
+    });
+    if(cur.length) out.push(cur);
+    return out.map((its,i)=>{
+      const p = {kind:'list', label: label + (out.length > 1 ? ' ' + (i+1) + '/' + out.length : ''),
+                 items:its, titleLines:tLines, titleBase0, sepY, listTop};
+      let t = 0.4; p.starts = [];
+      its.forEach(it=>{
+        p.starts.push(t);
+        t += it.t === 'step' ? Math.min(6.5, Math.max(2.4, 1.6 + it.len*0.028)) : (it.t === 'grp' ? 0.5 : 0.6);
+      });
+      p.dur = t + 1.7;
+      return p;
+    });
+  }
+  const ings = r.ingredients || [];
+  const steps = (r.etapes || []).filter(Boolean);
+  if(ings.length) paginate(ings, 'ing', 'Ingrédients').forEach(p=>pages.push(p));
+  if(steps.length){
+    let off = 0;
+    paginate(steps, 'step', 'Étapes').forEach(p=>{ p.stepOffset = off; off += p.items.length; pages.push(p); });
+  }
+
+  // Page de fin
+  const end = {kind:'end', dur:5.6};
+  c.font = '700 56px ' + F;
+  end.tLines = fmtWrap(c, r.titre, W).slice(0,2);
+  let y = 800 + end.tLines.length*66 + 10;
+  end.rem = null;
+  if(r.remarque){
+    c.font = '500 36px ' + F;
+    const rl = fmtWrap(c, r.remarque, W - 80).slice(0,6);
+    end.rem = {lines:rl, y:y, h:rl.length*48 + 56};
+    y += end.rem.h + 36;
+  }
+  end.brandY = y + 40; y += 90;
+  const tmp = document.createElement('div'); tmp.innerHTML = DISCLAIMER_TXT;
+  const disc = tmp.textContent;
+  let dfs = 30, dl = [];
+  for(; dfs >= 24; dfs -= 2){
+    c.font = '400 ' + dfs + 'px ' + F;
+    dl = fmtWrap(c, disc, W);
+    if(y + dl.length*dfs*1.4 <= 1580) break;
+  }
+  end.disc = {lines:dl, fs:Math.max(dfs,24), y:y};
+  pages.push(end);
+
+  pages.forEach((p,i)=>{ p.i = i; p.n = pages.length; });
+  fmtPages = pages;
+}
+
+// ---------- Dessin ----------
+function fmtDrawCover(p,rev,zoom){
+  const c = fmtCtx, W = FMT_W - 2*FMT_MX, F = FMT_FONT;
+  fmtShow(c,rev,0,()=>{
+    if(fmtPhoto) fmtDrawPhoto(c,fmtPhoto,FMT_MX,p.photoY,W,p.photoH,zoom);
+    else if(fmtLogo) fmtDrawLogo(FMT_W/2,430,130);
+  });
+  fmtShow(c,rev,1,()=>{
+    c.fillStyle = FMT_C.ochre; fmtRR(c,FMT_MX,p.tagY,p.tagW,64,32); c.fill();
+    c.fillStyle = '#fff'; c.font = '700 40px ' + F; c.textBaseline = 'middle';
+    c.fillText(p.tag, FMT_MX+32, p.tagY+34); c.textBaseline = 'alphabetic';
+  });
+  fmtShow(c,rev,2,()=>{
+    c.fillStyle = '#fff'; c.font = '800 ' + p.fs + 'px ' + F;
+    p.lines.forEach((l,i)=>c.fillText(l, FMT_MX, p.titleTop + p.fs*0.95 + i*p.fs*1.12));
+  });
+  fmtShow(c,rev,3,()=>{
+    if(p.meta){ c.fillStyle = FMT_C.sand; c.font = '600 52px ' + F; c.fillText(p.meta, FMT_MX, p.metaTop + 48); }
+    if(p.ig){
+      const col = FMT_IG[p.igCls];
+      c.font = '800 46px ' + F;
+      const w = c.measureText(p.ig).width + 64, y = p.metaTop + 84;
+      c.fillStyle = col[0]; fmtRR(c,FMT_MX,y,w,84,22); c.fill();
+      c.fillStyle = col[1]; c.textBaseline = 'middle'; c.fillText(p.ig, FMT_MX+32, y+44); c.textBaseline = 'alphabetic';
+    }
+  });
+}
+function fmtDrawList(p,rev){
+  const c = fmtCtx, W = FMT_W - 2*FMT_MX, F = FMT_FONT;
+  c.fillStyle = FMT_C.herbD; c.fillRect(0,0,FMT_W,14);
+  c.fillStyle = FMT_C.ochreD; c.font = '800 36px ' + F;
+  c.fillText(p.label.toUpperCase(), FMT_MX, FMT_TOP + 34);
+  c.fillStyle = FMT_C.herbD; c.font = '800 54px ' + F;
+  p.titleLines.forEach((l,i)=>c.fillText(l, FMT_MX, p.titleBase0 + i*62));
+  c.fillStyle = FMT_C.ochre; c.fillRect(FMT_MX, p.sepY, 160, 8);
+  p.items.forEach((it,k)=>fmtShow(c,rev,k,()=>{
+    const y0 = p.listTop + it.y;
+    if(it.t === 'grp'){
+      c.fillStyle = FMT_C.ochreD; c.font = '800 ' + it.fs + 'px ' + F;
+      it.lines.forEach((l,i)=>c.fillText(l, FMT_MX, y0 + 30 + it.fs*0.9 + i*it.lh));
+    } else if(it.t === 'ing'){
+      c.font = '600 ' + it.fs + 'px ' + F;
+      const b0 = y0 + 10 + it.fs*0.92, cy = b0 - it.fs*0.33;
+      c.fillStyle = FMT_C.herb; c.beginPath(); c.arc(FMT_MX+14, cy, 9, 0, Math.PI*2); c.fill();
+      c.fillStyle = FMT_C.ink;
+      it.lines.forEach((l,i)=>c.fillText(l, FMT_MX+44, b0 + i*it.lh));
+      if(it.ig !== null){
+        const col = FMT_IG[it.cls];
+        c.fillStyle = col[0]; fmtRR(c, FMT_W-FMT_MX-86, cy-26, 86, 52, 14); c.fill();
+        c.fillStyle = col[1]; c.font = '800 34px ' + F; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(String(it.ig), FMT_W-FMT_MX-43, cy+2); c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+      }
+      c.fillStyle = FMT_C.line; c.fillRect(FMT_MX, y0 + it.h - 8, W, 2);
+    } else {
+      const cy = y0 + 20 + 42;
+      c.fillStyle = FMT_C.herb; c.beginPath(); c.arc(FMT_MX+42, cy, 42, 0, Math.PI*2); c.fill();
+      c.fillStyle = '#fff'; c.font = '800 44px ' + F; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(String(k + 1 + (p.stepOffset||0)), FMT_MX+42, cy+3); c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+      c.fillStyle = FMT_C.ink; c.font = '500 ' + it.fs + 'px ' + F;
+      it.lines.forEach((l,i)=>c.fillText(l, FMT_MX+114, cy + it.fs*0.33 + i*it.lh));
+    }
+  }));
+}
+function fmtDrawEnd(p,rev){
+  const c = fmtCtx, W = FMT_W - 2*FMT_MX, F = FMT_FONT;
+  fmtShow(c,rev,0,()=>{ if(fmtLogo) fmtDrawLogo(FMT_W/2,380,120); });
+  fmtShow(c,rev,1,()=>{
+    c.fillStyle = '#fff'; c.font = '800 120px ' + F; c.textAlign = 'center';
+    c.fillText('Bon appétit !', FMT_W/2, 700); c.textAlign = 'left';
+  });
+  fmtShow(c,rev,2,()=>{
+    c.fillStyle = FMT_C.sand; c.font = '700 56px ' + F; c.textAlign = 'center';
+    p.tLines.forEach((l,i)=>c.fillText(l, FMT_W/2, 800 + i*66)); c.textAlign = 'left';
+  });
+  fmtShow(c,rev,3,()=>{
+    if(!p.rem) return;
+    c.fillStyle = 'rgba(255,255,255,.14)'; fmtRR(c,FMT_MX,p.rem.y,W,p.rem.h,28); c.fill();
+    c.fillStyle = '#fff'; c.font = '500 36px ' + F;
+    p.rem.lines.forEach((l,i)=>c.fillText(l, FMT_MX+40, p.rem.y + 28 + 36 + i*48));
+  });
+  fmtShow(c,rev,4,()=>{
+    c.fillStyle = FMT_C.sand; c.font = '800 36px ' + F; c.textAlign = 'center';
+    c.fillText(FMT_BRAND, FMT_W/2, p.brandY); c.textAlign = 'left';
+    c.fillStyle = 'rgba(255,255,255,.82)'; c.font = '400 ' + p.disc.fs + 'px ' + F;
+    p.disc.lines.forEach((l,i)=>c.fillText(l, FMT_MX, p.disc.y + p.disc.fs + i*p.disc.fs*1.4));
+  });
+}
+function fmtRender(p,rev,zoom){
+  const c = fmtCtx;
+  c.setTransform(1,0,0,1,0,0); c.globalAlpha = 1; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+  const dark = (p.kind === 'cover' || p.kind === 'end');
+  if(dark){
+    const g = c.createLinearGradient(0,0,0,FMT_H);
+    g.addColorStop(0,FMT_C.herb); g.addColorStop(1,FMT_C.herbD); c.fillStyle = g;
+  } else c.fillStyle = FMT_C.cream;
+  c.fillRect(0,0,FMT_W,FMT_H);
+  if(p.kind === 'cover') fmtDrawCover(p,rev,zoom || 1);
+  else if(p.kind === 'end') fmtDrawEnd(p,rev);
+  else fmtDrawList(p,rev);
+  // points de progression (décor, hors zone utile)
+  const n = p.n, x0 = FMT_W/2 - (n-1)*17;
+  for(let i=0;i<n;i++){
+    c.beginPath(); c.arc(x0 + i*34, 1610, 9, 0, Math.PI*2);
+    c.fillStyle = i === p.i ? FMT_C.ochre : (dark ? 'rgba(255,255,255,.35)' : FMT_C.line); c.fill();
+  }
+}
+const fmtRevFull = ()=>({a:1, dy:0});
+function fmtRevAt(p,t){
+  return k=>{
+    const st = p.kind === 'list' ? p.starts[k] : (p.kind === 'cover' ? -0.5 + k*0.25 : 0.2 + k*0.4);
+    const a = Math.min(1, Math.max(0, (t - st)/0.5)), e = 1 - Math.pow(1-a,3);
+    return {a:e, dy:(1-e)*60};
+  };
+}
+function fmtFrameAt(tMs){
+  let t = tMs/1000;
+  for(const p of fmtPages){
+    if(t < p.dur){ fmtRender(p, fmtRevAt(p,t), 1 + 0.07*(t/p.dur)); return; }
+    t -= p.dur;
+  }
+  const last = fmtPages[fmtPages.length-1];
+  fmtRender(last, fmtRevAt(last,last.dur), 1.07);
+}
+
+// ---------- Fenêtre et actions ----------
+function fmtTelecharger(url,nom){
+  const a = document.createElement('a'); a.href = url; a.download = nom;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function fmtToutTelecharger(){
+  for(let i=0;i<fmtUrls.length;i++){
+    fmtTelecharger(fmtUrls[i], fmtNom(i));
+    await new Promise(r=>setTimeout(r,600));
+  }
+}
+async function fmtFabriquerImages(){
+  fmtUrls.forEach(u=>URL.revokeObjectURL(u)); fmtUrls = [];
+  for(const p of fmtPages){
+    fmtRender(p, fmtRevFull, 1);
+    const blob = await new Promise(res=>fmtCv.toBlob(res,'image/png'));
+    if(!blob) throw new Error("l'image n'a pas pu être créée");
+    fmtUrls.push(URL.createObjectURL(blob));
+  }
+}
+function fmtNotePhoto(){
+  return (fmtR && fmtR.photo && !fmtPhoto)
+    ? '<div class="msg err">La photo de la recette n\'a pas pu être chargée : les images sont créées sans photo.</div>' : '';
+}
+function fmtAfficherStory(){
+  const n = fmtUrls.length;
+  document.getElementById('fmtBody').innerHTML = fmtNotePhoto() +
+    '<p class="fmt-note">' + n + ' images 1080×1920 prêtes pour une story Instagram ou Facebook. Les textes restent dans la zone sûre de Meta.</p>' +
+    '<button class="fmt-main" onclick="fmtToutTelecharger()">Télécharger les ' + n + ' images</button>' +
+    '<div class="fmt-grid">' + fmtUrls.map((u,i)=>
+      '<div class="fmt-card"><img src="' + u + '" alt="Image ' + (i+1) + '">' +
+      '<button onclick="fmtTelecharger(fmtUrls[' + i + '],fmtNom(' + i + '))">Image ' + (i+1) + ' : télécharger</button></div>').join('') + '</div>';
+}
+function fmtAfficherReel(){
+  const total = Math.round(fmtPages.reduce((a,p)=>a+p.dur,0));
+  document.getElementById('fmtBody').innerHTML = fmtNotePhoto() +
+    '<p class="fmt-note">Vidéo verticale 1080×1920, environ ' + total + ' secondes, sans musique (tu l\'ajoutes à la publication). ' +
+    'Elle se fabrique en direct : laisse cet onglet au premier plan jusqu\'à la fin.</p>' +
+    '<div id="fmtVideoZone"><button class="fmt-main" onclick="fmtFabriquerVideo()">Fabriquer la vidéo</button></div>' +
+    '<div id="fmtPreview"></div>';
+}
+async function fmtFabriquerVideo(){
+  if(fmtBusy) return;
+  const zone = document.getElementById('fmtVideoZone'), prev = document.getElementById('fmtPreview');
+  const types = ['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'];
+  const mime = window.MediaRecorder ? types.find(m=>MediaRecorder.isTypeSupported(m)) : null;
+  if(!mime){
+    zone.innerHTML = '<div class="msg err">Ce navigateur ne sait pas fabriquer la vidéo. Utilise Safari ou Chrome à jour.</div>';
+    return;
+  }
+  fmtBusy = true; fmtStop = false;
+  if(fmtVideoUrl){ URL.revokeObjectURL(fmtVideoUrl); fmtVideoUrl = ''; }
+  const total = fmtPages.reduce((a,p)=>a+p.dur,0)*1000;
+  zone.innerHTML = '<p class="fmt-note" id="fmtProg">Fabrication en cours… 0 s / ' + Math.round(total/1000) + ' s</p>' +
+    '<div class="fmt-bar"><div id="fmtBarIn"></div></div>' +
+    '<button class="fmt-sec" onclick="fmtStop=true">Annuler</button>';
+  prev.innerHTML = ''; prev.appendChild(fmtCv);
+  try{
+    const rec = new MediaRecorder(fmtCv.captureStream(30), {mimeType:mime, videoBitsPerSecond:8000000});
+    const chunks = [];
+    rec.ondataavailable = e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+    const fini = new Promise(res=>{ rec.onstop = res; });
+    fmtFrameAt(0); rec.start(500);
+    const t0 = performance.now();
+    await new Promise(done=>{
+      const tick = ()=>{
+        if(fmtStop){ done(); return; }
+        const t = performance.now() - t0;
+        if(t >= total){ fmtFrameAt(total); done(); return; }
+        fmtFrameAt(t);
+        const pg = document.getElementById('fmtProg'), bar = document.getElementById('fmtBarIn');
+        if(pg) pg.textContent = 'Fabrication en cours… ' + Math.round(t/1000) + ' s / ' + Math.round(total/1000) + ' s';
+        if(bar) bar.style.width = Math.round(100*t/total) + '%';
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await new Promise(r=>setTimeout(r,400));
+    rec.stop(); await fini;
+    if(fmtStop){ zone.innerHTML = '<button class="fmt-main" onclick="fmtFabriquerVideo()">Fabriquer la vidéo</button>'; prev.innerHTML = ''; return; }
+    const blob = new Blob(chunks, {type:mime.split(';')[0]});
+    fmtVideoUrl = URL.createObjectURL(blob);
+    const ext = mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+    const nom = fmtSlug() + '-reel.' + ext;
+    prev.innerHTML = '<video controls playsinline src="' + fmtVideoUrl + '"></video>';
+    zone.innerHTML = '<p class="fmt-note">Vidéo prête (' + Math.round(total/1000) + ' s).' +
+      (ext === 'webm' ? ' Ce navigateur la fournit en WebM : si Instagram la refuse, refais-la avec Safari ou un Chrome récent pour obtenir un MP4.' : '') + '</p>' +
+      '<button class="fmt-main" onclick="fmtTelecharger(fmtVideoUrl,\'' + nom + '\')">Télécharger la vidéo (.' + ext + ')</button>' +
+      '<button class="fmt-sec" onclick="fmtFabriquerVideo()">La refaire</button>';
+  }catch(e){
+    zone.innerHTML = '<div class="msg err">La vidéo n\'a pas pu être fabriquée : ' + escapeHtml(e.message || String(e)) + '</div>';
+  }finally{
+    fmtBusy = false;
+  }
+}
+async function ouvrirFormat(id,mode){
+  const r = D.recettes.find(x=>x.id === id);
+  if(!r || fmtBusy) return;
+  fmtR = r; fmtStop = false;
+  const body = document.getElementById('fmtBody');
+  document.getElementById('fmtTitre').textContent = (mode === 'story' ? 'Story' : 'Réel') + ' : ' + r.titre;
+  body.innerHTML = '<p class="fmt-note">Préparation en cours…</p>';
+  document.getElementById('fmtOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  try{
+    try{ await Promise.all(['400','500','600','700','800'].map(w=>document.fonts.load(w + ' 40px "DM Sans"'))); }catch(e){}
+    fmtPhoto = await fmtLoadImg(r.photo);
+    fmtLogo = await fmtLoadImg('icon-512.png');
+    fmtBuild(r);
+    if(mode === 'story'){ await fmtFabriquerImages(); fmtAfficherStory(); }
+    else fmtAfficherReel();
+  }catch(e){
+    body.innerHTML = '<div class="msg err">Impossible de préparer ce format : ' + escapeHtml(e.message || String(e)) + '</div>';
+  }
+}
+function fermerFormat(){
+  fmtStop = true;
+  document.getElementById('fmtOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+  fmtUrls.forEach(u=>URL.revokeObjectURL(u)); fmtUrls = [];
+  if(fmtVideoUrl){ URL.revokeObjectURL(fmtVideoUrl); fmtVideoUrl = ''; }
+  document.getElementById('fmtBody').innerHTML = '';
+}
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && document.getElementById('fmtOverlay').classList.contains('open')) fermerFormat();
+});
 </script>
 </body>
 </html>
