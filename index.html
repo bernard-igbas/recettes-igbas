@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <!--
-  recettes-igbas — v35.0 — 03/11/2026 — Validé par Bernard : EN ATTENTE
+  recettes-igbas — v35.1 — 03/11/2026 — Validé par Bernard : EN ATTENTE
+  v35.1 (03/11/2026) : EFFICACITÉ. Réel : choix du rythme « Normal » ou « Rapide » (vidéo environ 40 % plus courte) et légende Instagram prête à copier (titre, temps, IG, mention de la méthode, mots-clés), modifiable avant copie.
   v35.0 (03/11/2026) : IDENTITÉ ET MODE D'EMPLOI. Les images Story et le Réel portent le logo officiel Bien-être & Liberté / Méthode 3+1 à IGBas® (version fond sombre sur la une et la fin, version fond clair en haut des pages de liste), la police Helvetica Neue et la palette IGBas (bleu nuit, vert santé). Une fenêtre « Comment publier » explique pas à pas la publication Instagram (application et Meta Business Suite).
   v34.9 (02/11/2026) : FORMATS STORY ET RÉEL. Deux boutons réservés à l'administration (« Format Story » et « Format Réel »)
   sous « Télécharger la recette en PDF » sur chaque fiche. Story = images 1080×1920 (couverture, ingrédients, étapes, fin),
@@ -13,7 +14,7 @@
   d'en-tête la repoussait trop loin).
   v34.8 (03/10/2026) : les icônes sont maintenant de vrais fichiers (apple-touch-icon.png, icon-192.png, icon-512.png, manifest.json) pour le Dock du Mac, rien d'autre ne change.
   v34.7 (02/10/2026) : logo des mains (Bien-être et Liberté) comme icône de la page et du Dock du Mac, rien d'autre ne change.
-  Précédent : v34.9 — 02/11/2026
+  Précédent : v35.0 — 03/11/2026
   Cumule :
     - v1 : première version — catalogue, saisie Marie-Laure, fiche client avec IG par ingrédient, export PDF navigateur
     - v2 : ajout modification d'une recette existante (bouton "Modifier cette recette" sur la fiche) ; ajout badge "Nouveau" sur les recettes de moins de 15 jours (catalogue + par catégorie)
@@ -188,7 +189,7 @@
       genre d'espace
   Fichiers precedents : v1 (04/09/2026), v2 (06/09/2026), v3 (06/09/2026), v4 (06/09/2026), v5 (07/09/2026), v6 (07/09/2026), v7 (07/09/2026), v8 (08/09/2026), v9 (08/09/2026), v10 (08/09/2026), v11 (08/09/2026), v12 (08/09/2026), v13 (09/09/2026), v14 (11/09/2026), v15 (16/09/2026), v16 (16/09/2026), v17 (16/09/2026), v18 (18/09/2026), v19 (18/09/2026), v20 (19/09/2026), v21 (19/09/2026), v22 (19/09/2026), v23 (19/09/2026), v24 (20/09/2026), v25 (20/09/2026), v26 (20/09/2026), v27 (20/09/2026), v29 (21/09/2026), v30 (21/09/2026), v31 (21/09/2026), v32 (21/09/2026), v33 (22/09/2026).
 -->
-<meta name="app-version" content="v35.0-2026-11-03">
+<meta name="app-version" content="v35.1-2026-11-03">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="manifest" href="manifest.json">
@@ -444,6 +445,12 @@
   .fmt-guide ol{margin:0 0 8px;padding-left:24px;}
   .fmt-guide li{font-size:18px;line-height:1.6;margin-bottom:12px;color:var(--ink);}
   .fmt-guide p{font-size:17px;line-height:1.6;color:var(--ink);margin:0 0 12px;}
+  .fmt-rythme{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:18px;font-weight:700;color:var(--herb-dark);}
+  .fmt-rythme button{background:var(--paper);color:var(--herb-dark);border:2px solid var(--line);border-radius:12px;padding:12px 22px;font-family:inherit;font-size:18px;font-weight:700;cursor:pointer;}
+  .fmt-rythme button.on{background:var(--herb);color:#fff;border-color:var(--herb);}
+  .fmt-leg{margin:20px 0 4px;}
+  .fmt-leg-t{font-size:19px;font-weight:800;color:var(--herb-dark);margin-bottom:8px;}
+  .fmt-leg textarea{width:100%;box-sizing:border-box;border:2px solid var(--line);border-radius:12px;padding:14px;font-family:inherit;font-size:18px;line-height:1.6;color:var(--ink);resize:vertical;}
 </style>
 </head>
 <body>
@@ -452,7 +459,7 @@
   <a id="lienRetourSite" href="https://www.methode-igbas.fr" style="display:inline-flex;align-items:center;gap:6px;color:var(--herb-dark);font-weight:700;font-size:15px;text-decoration:none;margin-bottom:14px;">&larr; Retour au site methode-igbas.fr</a>
 
   <header class="top">
-    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v35.0 &bull; 03/11/2026 &bull; Validé : EN ATTENTE</span></div>
+    <div><span class="brand">LaTABLE <span>SiD</span>Santé</span><span class="version-tag admin-only" id="versionTag">v35.1 &bull; 03/11/2026 &bull; Validé : EN ATTENTE</span></div>
     <nav class="tabs">
       <button id="tabCatalogue" class="active" onclick="setView('catalogue')">Recettes</button>
       <button id="tabAdmin" class="admin-only" onclick="startNewRecette()">Ajouter une recette</button>
@@ -1691,7 +1698,7 @@ const fmtCv = document.createElement('canvas');
 fmtCv.width = FMT_W; fmtCv.height = FMT_H;
 const fmtCtx = fmtCv.getContext('2d');
 let fmtR = null, fmtPhoto = null, fmtLogo = null, fmtLogoL = null, fmtPages = [];
-let fmtUrls = [], fmtVideoUrl = '', fmtStop = false, fmtBusy = false;
+let fmtUrls = [], fmtVideoUrl = '', fmtStop = false, fmtBusy = false, fmtSpeed = 1;
 
 function fmtRR(c,x,y,w,h,r){
   c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
@@ -1861,9 +1868,17 @@ function fmtBuild(r){
   end.disc = {lines:dl, fs:Math.max(dfs,24), y:y};
   pages.push(end);
 
-  pages.forEach((p,i)=>{ p.i = i; p.n = pages.length; });
+  pages.forEach((p,i)=>{ p.i = i; p.n = pages.length; p.dur0 = p.dur; p.starts0 = p.starts ? p.starts.slice() : null; });
   fmtPages = pages;
+  fmtApplySpeed(fmtSpeed);
 }
+
+// Rythme du Réel : 1 = normal, 0.6 = rapide (durées multipliées)
+function fmtApplySpeed(f){
+  fmtSpeed = f;
+  fmtPages.forEach(p=>{ p.dur = p.dur0*f; if(p.starts0) p.starts = p.starts0.map(x=>x*f); });
+}
+function fmtTotalSec(){ return Math.round(fmtPages.reduce((a,p)=>a+p.dur,0)); }
 
 // ---------- Dessin ----------
 function fmtDrawCover(p,rev,zoom){
@@ -1977,8 +1992,8 @@ function fmtRender(p,rev,zoom){
 const fmtRevFull = ()=>({a:1, dy:0});
 function fmtRevAt(p,t){
   return k=>{
-    const st = p.kind === 'list' ? p.starts[k] : (p.kind === 'cover' ? -0.5 + k*0.25 : 0.2 + k*0.4);
-    const a = Math.min(1, Math.max(0, (t - st)/0.5)), e = 1 - Math.pow(1-a,3);
+    const st = p.kind === 'list' ? p.starts[k] : (p.kind === 'cover' ? -0.5 + k*0.25 : 0.2 + k*0.4)*fmtSpeed;
+    const a = Math.min(1, Math.max(0, (t - st)/(0.5*Math.max(fmtSpeed,0.7)))), e = 1 - Math.pow(1-a,3);
     return {a:e, dy:(1-e)*60};
   };
 }
@@ -2007,7 +2022,7 @@ const FMT_GUIDE_REEL =
  '<li><b>Envoie la vidéo sur ton iPhone</b> : AirDrop depuis le Mac (ou iCloud Photos).</li>' +
  '<li><b>Instagram</b> : appuie sur le + puis « Réel », et choisis la vidéo.</li>' +
  '<li><b>Rends-la vivante</b> : ajoute de la musique (la vidéo est muette), éventuellement du texte ou des autocollants, et choisis l\'image de couverture : c\'est elle qu\'on voit sur ton profil.</li>' +
- '<li><b>Légende</b> : une phrase d\'accroche, le nom de la recette, 3 à 5 mots-clés (#), puis « Partager ». Coche aussi le partage sur Facebook si tu veux.</li>' +
+ '<li><b>Légende</b> : colle la légende copiée plus haut (envoie-la-toi par AirDrop ou par message pour la retrouver sur l\'iPhone), ajoute une phrase d\'accroche si tu veux, puis « Partager ». Coche aussi le partage sur Facebook si tu veux.</li>' +
  '<li><b>Depuis le Mac</b> : Meta Business Suite, « Créer un Reel », avec choix du jour et de l\'heure (compte professionnel). La musique se choisit surtout dans l\'application.</li>' +
  '</ol><p>Pour une version animée à publier en story, tu peux aussi ajouter ce Réel dans une story depuis l\'application. Les menus d\'Instagram changent souvent : si un nom diffère, cherche l\'équivalent.</p></details>';
 
@@ -2044,13 +2059,47 @@ function fmtAfficherStory(){
       '<div class="fmt-card"><img src="' + u + '" alt="Image ' + (i+1) + '">' +
       '<button onclick="fmtTelecharger(fmtUrls[' + i + '],fmtNom(' + i + '))">Image ' + (i+1) + ' : télécharger</button></div>').join('') + '</div>';
 }
+function fmtTexteDuree(){
+  return 'Vidéo verticale 1080×1920, environ ' + fmtTotalSec() + ' secondes, sans musique (tu l\'ajoutes à la publication). ' +
+    'Elle se fabrique en direct, donc en autant de secondes : laisse cet onglet au premier plan jusqu\'à la fin.';
+}
+function fmtChoisirRythme(f){
+  if(fmtBusy) return;
+  fmtApplySpeed(f);
+  document.getElementById('fmtRyN').className = f === 1 ? 'on' : '';
+  document.getElementById('fmtRyR').className = f === 1 ? '' : 'on';
+  document.getElementById('fmtDuree').textContent = fmtTexteDuree();
+}
+function fmtLegende(r){
+  const ig = igMoyen(r.ingredients);
+  const meta = [r.temps, fmtNbPersonnes(r.personnes)].filter(Boolean).join(' · ');
+  const igt = ig ? igLabel(ig) + ' (' + ig + ')' : '';
+  const l = [r.titre];
+  const ligne = [meta, igt].filter(Boolean).join(' · ');
+  if(ligne) l.push(ligne);
+  l.push('', 'Une recette Bien-être & Liberté, Méthode 3+1 à IGBas®.', '', '#recette #igbas #indexglycemique #bienetreetliberte #methode3plus1');
+  return l.join('\n');
+}
+async function fmtCopierLegende(){
+  const ta = document.getElementById('fmtLeg');
+  try{ await navigator.clipboard.writeText(ta.value); }
+  catch(e){ ta.select(); document.execCommand('copy'); }
+  const ok = document.getElementById('fmtLegOk');
+  if(ok) ok.textContent = 'Légende copiée : tu peux la coller dans Instagram.';
+}
 function fmtAfficherReel(){
-  const total = Math.round(fmtPages.reduce((a,p)=>a+p.dur,0));
   document.getElementById('fmtBody').innerHTML = fmtNotePhoto() +
-    '<p class="fmt-note">Vidéo verticale 1080×1920, environ ' + total + ' secondes, sans musique (tu l\'ajoutes à la publication). ' +
-    'Elle se fabrique en direct : laisse cet onglet au premier plan jusqu\'à la fin.</p>' +
+    '<div class="fmt-rythme"><span>Rythme :</span>' +
+    '<button id="fmtRyN" class="' + (fmtSpeed === 1 ? 'on' : '') + '" onclick="fmtChoisirRythme(1)">Normal</button>' +
+    '<button id="fmtRyR" class="' + (fmtSpeed === 1 ? '' : 'on') + '" onclick="fmtChoisirRythme(0.6)">Rapide</button></div>' +
+    '<p class="fmt-note" id="fmtDuree">' + fmtTexteDuree() + '</p>' +
     '<div id="fmtVideoZone"><button class="fmt-main" onclick="fmtFabriquerVideo()">Fabriquer la vidéo</button></div>' +
-    '<div id="fmtPreview"></div>' + FMT_GUIDE_REEL;
+    '<div id="fmtPreview"></div>' +
+    '<div class="fmt-leg"><div class="fmt-leg-t">Légende prête à copier</div>' +
+    '<textarea id="fmtLeg" rows="7"></textarea>' +
+    '<button class="fmt-sec" onclick="fmtCopierLegende()">Copier la légende</button>' +
+    '<p class="fmt-note" id="fmtLegOk"></p></div>' + FMT_GUIDE_REEL;
+  document.getElementById('fmtLeg').value = fmtLegende(fmtR);
 }
 async function fmtFabriquerVideo(){
   if(fmtBusy) return;
